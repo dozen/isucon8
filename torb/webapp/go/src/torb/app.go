@@ -288,6 +288,9 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 
 			// TODO: this maybe danger
 			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			if len(eventIDs) == 1 {
+				event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			}
 			counter++
 		}
 		rows2.Close()
@@ -693,13 +696,18 @@ func main() {
 			loginUserID = user.ID
 		}
 
-		event, err := getEvent(eventID, loginUserID)
+		events, err := getEventsByIDs([]int64{eventID}, loginUserID)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "not_found", 404)
-			}
 			return err
-		} else if !event.PublicFg {
+		}
+
+		if len(events) == 0 {
+			return resError(c, "not_found", 404)
+		}
+
+		event := events[0]
+
+		if !event.PublicFg {
 			return resError(c, "not_found", 404)
 		}
 		return c.JSON(200, sanitizeEvent(event))
@@ -719,13 +727,16 @@ func main() {
 			return err
 		}
 
-		event, err := getEvent(eventID, user.ID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "invalid_event", 404)
-			}
-			return err
-		} else if !event.PublicFg {
+		var event Event
+		events, err := getEventsByIDs([]int64{eventID}, user.ID)
+
+		if len(events) == 0 {
+			return resError(c, "invalid_event", 404)
+		}
+
+		event = *events[0]
+
+		if !event.PublicFg {
 			return resError(c, "invalid_event", 404)
 		}
 
@@ -813,13 +824,16 @@ func main() {
 			return err
 		}
 
-		event, err := getEvent(eventID, user.ID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "invalid_event", 404)
-			}
-			return err
-		} else if !event.PublicFg {
+		var event Event
+		events, err := getEventsByIDs([]int64{eventID}, user.ID)
+
+		if len(events) == 0 {
+			return resError(c, "invalid_event", 404)
+		}
+
+		event = *events[0]
+
+		if !event.PublicFg {
 			return resError(c, "invalid_event", 404)
 		}
 
@@ -952,10 +966,17 @@ func main() {
 			return err
 		}
 
-		event, err := getEvent(eventID, -1)
+		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
 			return err
 		}
+
+		if len(events) == 0 {
+			return resError(c, "not_found", 404)
+		}
+
+		event := events[0]
+
 		return c.JSON(200, event)
 	}, adminLoginRequired)
 	e.GET("/admin/api/events/:id", func(c echo.Context) error {
@@ -963,13 +984,19 @@ func main() {
 		if err != nil {
 			return resError(c, "not_found", 404)
 		}
-		event, err := getEvent(eventID, -1)
+
+		var event Event
+		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "not_found", 404)
-			}
 			return err
 		}
+
+		if len(events) == 0 {
+			return resError(c, "not_found", 404)
+		}
+
+		event = *events[0]
+
 		return c.JSON(200, event)
 	}, adminLoginRequired)
 	e.POST("/admin/api/events/:id/actions/edit", func(c echo.Context) error {
@@ -987,13 +1014,17 @@ func main() {
 			params.Public = false
 		}
 
-		event, err := getEvent(eventID, -1)
+		var event Event
+		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "not_found", 404)
-			}
 			return err
 		}
+
+		if len(events) == 0 {
+			return resError(c, "not_found", 404)
+		}
+
+		event = *events[0]
 
 		if event.ClosedFg {
 			return resError(c, "cannot_edit_closed_event", 400)
@@ -1013,10 +1044,18 @@ func main() {
 			return err
 		}
 
-		e, err := getEvent(eventID, -1)
+		var e Event
+		es, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
 			return err
 		}
+
+		if len(es) == 0 {
+			return resError(c, "invalid_event", 404)
+		}
+
+		e = *es[0]
+
 		c.JSON(200, e)
 		return nil
 	}, adminLoginRequired)
@@ -1026,10 +1065,17 @@ func main() {
 			return resError(c, "not_found", 404)
 		}
 
-		event, err := getEvent(eventID, -1)
+		var event Event
+		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
 			return err
 		}
+
+		if len(events) == 0 {
+			return resError(c, "invalid_event", 404)
+		}
+
+		event = *events[0]
 
 		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC FOR UPDATE", event.ID)
 		if err != nil {
