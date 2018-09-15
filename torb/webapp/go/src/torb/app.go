@@ -667,6 +667,9 @@ func main() {
 		}
 
 		events, err := getEventsByIDs([]int64{eventID}, loginUserID)
+		if err != nil {
+			return err
+		}
 
 		if len(events) == 0 {
 			return errors.New("events: 0")
@@ -674,12 +677,7 @@ func main() {
 
 		event := events[0]
 
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "not_found", 404)
-			}
-			return err
-		} else if !event.PublicFg {
+		if !event.PublicFg {
 			return resError(c, "not_found", 404)
 		}
 		return c.JSON(200, sanitizeEvent(event))
