@@ -28,3 +28,5 @@ mysql -uisucon torb -e 'flush slow logs'
 
 curl -sL isu1:8080/initialize &
 curl -sL isu3:8080/initialize &
+
+exit 0
