@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -399,9 +400,47 @@ func cacheSheetsOnMemory() error {
 	return nil
 }
 
+func cacheInitUser() error {
+	rows, err := db.Query("SELECT * FROM users")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash, &user.Price); err != nil {
+			return err
+		}
+
+		cacheUserMap[user.ID] = &user
+	}
+
+	return nil
+}
+
+func cacheInitAdminUser() error {
+	rows, err := db.Query("SELECT * FROM administrator")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var admin Administrator
+		if err := rows.Scan(&admin.ID, &admin.LoginName, &admin.Nickname, &admin.PassHash); err != nil {
+			return err
+		}
+
+		cacheAdminUserMap[admin.ID] = &admin
+	}
+
+	return nil
+}
+
 var (
-	db           *sql.DB
-	cachedSheets []*Sheet
+	db                *sql.DB
+	cachedSheets      []*Sheet
+	cacheUserMap      map[int64]*User
+	cacheAdminUserMap map[int64]*Administrator
 )
 
 func main() {
@@ -416,6 +455,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	cacheUserMap = make(map[int64]*User, 6000)
+	cacheAdminUserMap = make(map[int64]*Administrator, 200)
 
 	e := echo.New()
 	funcs := template.FuncMap{
@@ -452,6 +494,15 @@ func main() {
 		if err != nil {
 			return nil
 		}
+
+		if err := cacheInitUser(); err != nil {
+			return err
+		}
+
+		if err := cacheInitAdminUser(); err != nil {
+			return err
+		}
+
 
 		if err := cacheSheetsOnMemory(); err != nil {
 			return err
@@ -629,8 +680,17 @@ func main() {
 			return err
 		}
 
-		if params.Password != user.PassHash {
-			return resError(c, "authentication_failed", 401)
+		if u, ok := cacheUserMap[user.ID]; ok {
+			s := sha256.New()
+			s.Write([]byte(params.Password))
+			passhash := string(s.Sum(nil))
+			if u.PassHash != passhash {
+				return resError(c, "authentication_failed", 401)
+			}
+		} else {
+			if params.Password != user.PassHash {
+				return resError(c, "authentication_failed", 401)
+			}
 		}
 
 		sessSetUserID(c, user.ID)
@@ -882,8 +942,17 @@ func main() {
 			return err
 		}
 
-		if params.Password != administrator.PassHash {
-			return resError(c, "authentication_failed", 401)
+		if u, ok := cacheAdminUserMap[administrator.ID]; ok {
+			s := sha256.New()
+			s.Write([]byte(params.Password))
+			passhash := string(s.Sum(nil))
+			if u.PassHash != passhash {
+				return resError(c, "authentication_failed", 401)
+			}
+		} else {
+			if params.Password != administrator.PassHash {
+				return resError(c, "authentication_failed", 401)
+			}
 		}
 
 		sessSetAdministratorID(c, administrator.ID)
