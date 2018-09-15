@@ -234,7 +234,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		return nil, err
 	}
 
-	counter := 0
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
@@ -252,6 +251,8 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		counter := 0
 
 		for rows2.Next() {
 			var reservation Reservation
@@ -276,11 +277,10 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			}
 			// TODO: this maybe danger
 			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			counter++
 		}
 
 		events = append(events, &event)
-
-		counter++
 	}
 
 	return events, nil
