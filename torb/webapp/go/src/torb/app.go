@@ -288,6 +288,9 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 
 			// TODO: this maybe danger
 			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			if len(eventIDs) == 1 {
+				event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			}
 			counter++
 		}
 		rows2.Close()
