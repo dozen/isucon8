@@ -254,7 +254,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			event.Total++
 			event.Sheets[sheet.Rank].Total++
 
-			rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID)
+			rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID,)
 			if err != nil {
 				return nil, err
 			}
