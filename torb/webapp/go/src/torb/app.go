@@ -670,7 +670,7 @@ func main() {
 				continue
 			}
 
-			_, err := tx.Eexec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, User.ID)
+			_, err = tx.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
 			if err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
