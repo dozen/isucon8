@@ -16,7 +16,6 @@ import (
 
 	"strings"
 
-	"github.com/constabulary/gb/testdata/src/c"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo"
