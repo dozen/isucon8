@@ -596,6 +596,7 @@ func main() {
 		for _, id := range eventIDs {
 			for _, ev := range recentEvents {
 				if ev.ID == id {
+					log.Printf("%#v", *ev)
 					resEvents = append(resEvents, ev)
 					break
 				}
