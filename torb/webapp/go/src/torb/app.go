@@ -945,7 +945,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
 		event := events[0]
@@ -965,7 +965,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
 		event = *events[0]
@@ -994,7 +994,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
 		event = *events[0]
