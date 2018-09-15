@@ -665,6 +665,14 @@ func main() {
 				log.Println("re-try: rollback by", err)
 				continue
 			}
+
+			_, err := tx.Eexec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, User.ID)
+			if err != nil {
+				tx.Rollback()
+				log.Println("re-try: rollback by", err)
+				continue
+			}
+
 			if err := tx.Commit(); err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
