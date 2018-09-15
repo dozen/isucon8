@@ -288,6 +288,9 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 
 			// TODO: this maybe danger
 			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			if len(eventIDs) == 1 {
+				event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			}
 			counter++
 		}
 		rows2.Close()
@@ -663,19 +666,17 @@ func main() {
 		}
 
 		events, err := getEventsByIDs([]int64{eventID}, loginUserID)
+		if err != nil {
+			return err
+		}
 
 		if len(events) == 0 {
-			return errors.New("events: 0")
+			return resError(c, "not_found", 404)
 		}
 
 		event := events[0]
 
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "not_found", 404)
-			}
-			return err
-		} else if !event.PublicFg {
+		if !event.PublicFg {
 			return resError(c, "not_found", 404)
 		}
 		return c.JSON(200, sanitizeEvent(event))
@@ -930,17 +931,16 @@ func main() {
 			return err
 		}
 
-		var event Event
 		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
 			return err
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
-		event = *events[0]
+		event := events[0]
 
 		return c.JSON(200, event)
 	}, adminLoginRequired)
@@ -957,7 +957,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
 		event = *events[0]
@@ -986,7 +986,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return resError(c, "invalid_event", 404)
+			return resError(c, "not_found", 404)
 		}
 
 		event = *events[0]
