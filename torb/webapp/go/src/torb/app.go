@@ -569,7 +569,11 @@ func main() {
 			for _, ev := range recentReservEvents {
 				if ev.ID == reservation.EventID {
 					event = ev
+					break
 				}
+			}
+			if event == nil {
+				return sql.ErrNoRows
 			}
 			price := event.Sheets[sheet.Rank].Price
 			event.Sheets = nil
