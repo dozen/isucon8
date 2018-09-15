@@ -253,7 +253,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			return nil, err
 		}
 
-
 		reservRows := make([]Reservation, 0)
 		for rows2.Next() {
 			var reservation Reservation
@@ -579,21 +578,22 @@ func main() {
 		}
 		defer rows.Close()
 
-		var recentEvents []*Event
+		//var recentEvents []*Event
+
+		eventIDs := make([]int64, 0)
 		for rows.Next() {
 			var eventID int64
 			if err := rows.Scan(&eventID); err != nil {
 				return err
 			}
-			event, err := getEvent(eventID, -1)
-			if err != nil {
-				return err
-			}
-			for k := range event.Sheets {
-				event.Sheets[k].Detail = nil
-			}
-			recentEvents = append(recentEvents, event)
+			eventIDs = append(eventIDs, eventID)
 		}
+
+		recentEvents, err := getEventsByIDs(eventIDs, -1)
+		if err != nil {
+			return err
+		}
+
 		if recentEvents == nil {
 			recentEvents = make([]*Event, 0)
 		}
