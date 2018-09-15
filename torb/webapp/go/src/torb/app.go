@@ -233,7 +233,7 @@ func getEvent(eventID, loginUserID int64) (*Event, error) {
 		"C": &Sheets{},
 	}
 
-	copiedSheets := make([]*Sheet, 0, len(cachedSheets))
+	copiedSheets := make([]*Sheet, len(cachedSheets))
 	copy(copiedSheets, cachedSheets)
 
 	for _, sheet := range copiedSheets {
