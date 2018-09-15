@@ -578,7 +578,7 @@ func main() {
 		}
 		defer rows.Close()
 
-		//var recentEvents []*Event
+		var recentEvents []*Event
 
 		eventIDs := make([]int64, 0)
 		for rows.Next() {
@@ -589,7 +589,7 @@ func main() {
 			eventIDs = append(eventIDs, eventID)
 		}
 
-		recentEvents, err := getEventsByIDs(eventIDs, -1)
+		recentEvents, err = getEventsByIDs(eventIDs, -1)
 		if err != nil {
 			return err
 		}
