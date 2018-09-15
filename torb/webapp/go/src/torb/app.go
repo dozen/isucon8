@@ -19,6 +19,7 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/middleware"
+	"strings"
 )
 
 type User struct {
@@ -213,23 +214,15 @@ func getEvents(all bool) ([]*Event, error) {
 
 func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	// event ids
-	var event Event
-
 	events := make([]*Event, 0, len(eventIDs))
 
-	event.Sheets = map[string]*Sheets{
-		"S": &Sheets{},
-		"A": &Sheets{},
-		"B": &Sheets{},
-		"C": &Sheets{},
-	}
-
-	var str string
+	var eventsIDsStr []string
 	for _, value := range eventIDs {
-		str += strconv.Itoa(int(value)) + ","
+		str := strconv.Itoa(int(value))
+		eventsIDsStr = append(eventsIDsStr,str)
 	}
 
-	rows, err := db.Query("SELECT * FROM events WHERE id IN (" + str[:len(str)-1] + ")")
+	rows, err := db.Query("SELECT * FROM events WHERE id IN (" + strings.Join(eventsIDsStr, ",") + ")")
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +232,13 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		var event Event
 		if err := rows.Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
 			return nil, err
+		}
+
+		event.Sheets = map[string]*Sheets{
+			"S": &Sheets{},
+			"A": &Sheets{},
+			"B": &Sheets{},
+			"C": &Sheets{},
 		}
 
 		for _, cSheet := range cachedSheets {
