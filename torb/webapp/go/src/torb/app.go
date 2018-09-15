@@ -478,7 +478,7 @@ func main() {
 			return err
 		}
 
-		res, err := tx.Exec("INSERT INTO users (login_name, pass_hash, nickname) VALUES (?, SHA2(?, 256), ?)", params.LoginName, params.Password, params.Nickname)
+		res, err := tx.Exec("INSERT INTO users (login_name, pass_hash, nickname) VALUES (?, ?, ?)", params.LoginName, params.Password, params.Nickname)
 		if err != nil {
 			tx.Rollback()
 			return resError(c, "", 0)
@@ -626,11 +626,7 @@ func main() {
 			return err
 		}
 
-		var passHash string
-		if err := db.QueryRow("SELECT SHA2(?, 256)", params.Password).Scan(&passHash); err != nil {
-			return err
-		}
-		if user.PassHash != passHash {
+		if params.Password != user.PassHash {
 			return resError(c, "authentication_failed", 401)
 		}
 
@@ -886,11 +882,7 @@ func main() {
 			return err
 		}
 
-		var passHash string
-		if err := db.QueryRow("SELECT SHA2(?, 256)", params.Password).Scan(&passHash); err != nil {
-			return err
-		}
-		if administrator.PassHash != passHash {
+		if params.Password != administrator.PassHash {
 			return resError(c, "authentication_failed", 401)
 		}
 
