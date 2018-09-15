@@ -403,7 +403,7 @@ func main() {
 	})
 	e.GET("/api/users/:id", func(c echo.Context) error {
 		var user User
-		if err := db.QueryRow("SELECT id, nickname FROM users WHERE id = ?", c.Param("id")).Scan(&user.ID, &user.Nickname); err != nil {
+		if err := db.QueryRow("SELECT id, nickname, price FROM users WHERE id = ?", c.Param("id")).Scan(&user.ID, &user.Nickname, &user.Price); err != nil {
 			return err
 		}
 
@@ -464,22 +464,6 @@ func main() {
 			recentReservations = make([]Reservation, 0)
 		}
 
-		// 予約したときに増やす、予約がキャンセルされたときに減らす
-		var totalPrice int
-		if err := db.QueryRow(`
-		SELECT
-		    IFNULL(SUM(e.price + s.price), 0)
-		FROM
-		    reservations r
-		    INNER JOIN sheets s ON s.id = r.sheet_id
-		    INNER JOIN events e ON e.id = r.event_id
-		WHERE
-		    r.user_id = ?
-		    AND r.canceled_at IS NULL
-    `, user.ID).Scan(&totalPrice); err != nil {
-			return err
-		}
-
 		rows, err = db.Query(`SELECT
 		    event_id
 		FROM
@@ -521,7 +505,7 @@ func main() {
 			"id":                  user.ID,
 			"nickname":            user.Nickname,
 			"recent_reservations": recentReservations,
-			"total_price":         totalPrice,
+			"total_price":         user.Price,
 			"recent_events":       recentEvents,
 		})
 	}, loginRequired)
