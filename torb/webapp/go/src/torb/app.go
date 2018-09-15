@@ -683,7 +683,7 @@ func main() {
 		} else if !event.PublicFg {
 			return resError(c, "not_found", 404)
 		}
-		return c.JSON(200, sanitizeEvent(event))
+		return c.JSON(200, sanitizeEvent(&event))
 	})
 	e.POST("/api/events/:id/actions/reserve", func(c echo.Context) error {
 		eventID, err := strconv.ParseInt(c.Param("id"), 10, 64)
