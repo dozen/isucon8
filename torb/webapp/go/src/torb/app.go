@@ -234,7 +234,7 @@ func getEvent(eventID, loginUserID int64) (*Event, error) {
 	}
 
 	copiedSheets := make([]*Sheet, 0, len(cachedSheets))
-	copy(cachedSheets, copiedSheets)
+	copy(copiedSheets, cachedSheets)
 
 	for _, sheet := range copiedSheets {
 		event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
