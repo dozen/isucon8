@@ -28,4 +28,4 @@ reload-app:
 	done
 
 build:
-	cd /home/isucon/torb/webapp/go/Makefile; make build
+	cd /home/isucon/torb/webapp/go/; make build
