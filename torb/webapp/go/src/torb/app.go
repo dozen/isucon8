@@ -415,7 +415,19 @@ func main() {
 			return resError(c, "forbidden", 403)
 		}
 
-		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id WHERE r.user_id = ? ORDER BY IFNULL(r.canceled_at, r.reserved_at) DESC LIMIT 5", user.ID)
+		rows, err := db.Query(`SELECT
+		    r.*,
+		    s.rank AS sheet_rank,
+		    s.num AS sheet_num
+		FROM
+		    reservations r
+		    INNER JOIN sheets s ON s.id = r.sheet_id
+		WHERE
+		    r.user_id = ?
+		ORDER BY
+		    IFNULL (r.canceled_at, r.reserved_at) DESC
+		LIMIT 5
+		`, user.ID)
 		if err != nil {
 			return err
 		}
@@ -452,12 +464,35 @@ func main() {
 			recentReservations = make([]Reservation, 0)
 		}
 
+		// 予約したときに増やす、予約がキャンセルされたときに減らす
 		var totalPrice int
-		if err := db.QueryRow("SELECT IFNULL(SUM(e.price + s.price), 0) FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.user_id = ? AND r.canceled_at IS NULL", user.ID).Scan(&totalPrice); err != nil {
+		if err := db.QueryRow(`
+		SELECT
+		    IFNULL(SUM(e.price + s.price), 0)
+		FROM
+		    reservations r
+		    INNER JOIN sheets s ON s.id = r.sheet_id
+		    INNER JOIN events e ON e.id = r.event_id
+		WHERE
+		    r.user_id = ?
+		    AND r.canceled_at IS NULL
+    `, user.ID).Scan(&totalPrice); err != nil {
 			return err
 		}
 
-		rows, err = db.Query("SELECT event_id FROM reservations WHERE user_id = ? GROUP BY event_id ORDER BY MAX(IFNULL(canceled_at, reserved_at)) DESC LIMIT 5", user.ID)
+		rows, err = db.Query(`SELECT
+		    event_id
+		FROM
+		    reservations
+		WHERE
+		    user_id = ?
+		GROUP BY
+		    event_id
+		ORDER BY
+		    MAX(IFNULL (canceled_at, reserved_at))
+		    DESC
+		LIMIT 5
+    `, user.ID)
 		if err != nil {
 			return err
 		}
