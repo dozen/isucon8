@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     nickname    VARCHAR(128) NOT NULL,
     login_name  VARCHAR(128) NOT NULL,
     pass_hash   VARCHAR(128) NOT NULL,
+    price       INTEGER NOT NULL DEFAULT 0,
     UNIQUE KEY login_name_uniq (login_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -29,7 +30,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     user_id     INTEGER UNSIGNED NOT NULL,
     reserved_at DATETIME(6)      NOT NULL,
     canceled_at DATETIME(6)      DEFAULT NULL,
-    KEY event_id_and_sheet_id_idx (event_id, sheet_id)
+    KEY event_id_and_sheet_id_idx (event_id, sheet_id),
+    KEY user_id_idx (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS administrators (

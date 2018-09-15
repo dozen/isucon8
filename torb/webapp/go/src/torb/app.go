@@ -28,6 +28,7 @@ type User struct {
 	Nickname  string `json:"nickname,omitempty"`
 	LoginName string `json:"login_name,omitempty"`
 	PassHash  string `json:"pass_hash,omitempty"`
+	Price     int32  `json:"price,omitempty"`
 }
 
 type Event struct {
@@ -393,7 +394,7 @@ func main() {
 		}
 
 		var user User
-		if err := tx.QueryRow("SELECT * FROM users WHERE login_name = ?", params.LoginName).Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash); err != sql.ErrNoRows {
+		if err := tx.QueryRow("SELECT * FROM users WHERE login_name = ?", params.LoginName).Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash, &user.Price); err != sql.ErrNoRows {
 			tx.Rollback()
 			if err == nil {
 				return resError(c, "duplicated", 409)
@@ -422,7 +423,7 @@ func main() {
 	})
 	e.GET("/api/users/:id", func(c echo.Context) error {
 		var user User
-		if err := db.QueryRow("SELECT id, nickname FROM users WHERE id = ?", c.Param("id")).Scan(&user.ID, &user.Nickname); err != nil {
+		if err := db.QueryRow("SELECT id, nickname, price FROM users WHERE id = ?", c.Param("id")).Scan(&user.ID, &user.Nickname, &user.Price); err != nil {
 			return err
 		}
 
@@ -434,7 +435,19 @@ func main() {
 			return resError(c, "forbidden", 403)
 		}
 
-		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id WHERE r.user_id = ? ORDER BY IFNULL(r.canceled_at, r.reserved_at) DESC LIMIT 5", user.ID)
+		rows, err := db.Query(`SELECT
+		    r.*,
+		    s.rank AS sheet_rank,
+		    s.num AS sheet_num
+		FROM
+		    reservations r
+		    INNER JOIN sheets s ON s.id = r.sheet_id
+		WHERE
+		    r.user_id = ?
+		ORDER BY
+		    IFNULL (r.canceled_at, r.reserved_at) DESC
+		LIMIT 5
+		`, user.ID)
 		if err != nil {
 			return err
 		}
@@ -471,12 +484,19 @@ func main() {
 			recentReservations = make([]Reservation, 0)
 		}
 
-		var totalPrice int
-		if err := db.QueryRow("SELECT IFNULL(SUM(e.price + s.price), 0) FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.user_id = ? AND r.canceled_at IS NULL", user.ID).Scan(&totalPrice); err != nil {
-			return err
-		}
-
-		rows, err = db.Query("SELECT event_id FROM reservations WHERE user_id = ? GROUP BY event_id ORDER BY MAX(IFNULL(canceled_at, reserved_at)) DESC LIMIT 5", user.ID)
+		rows, err = db.Query(`SELECT
+		    event_id
+		FROM
+		    reservations
+		WHERE
+		    user_id = ?
+		GROUP BY
+		    event_id
+		ORDER BY
+		    MAX(IFNULL (canceled_at, reserved_at))
+		    DESC
+		LIMIT 5
+    `, user.ID)
 		if err != nil {
 			return err
 		}
@@ -505,7 +525,7 @@ func main() {
 			"id":                  user.ID,
 			"nickname":            user.Nickname,
 			"recent_reservations": recentReservations,
-			"total_price":         totalPrice,
+			"total_price":         user.Price,
 			"recent_events":       recentEvents,
 		})
 	}, loginRequired)
@@ -517,7 +537,7 @@ func main() {
 		c.Bind(&params)
 
 		user := new(User)
-		if err := db.QueryRow("SELECT * FROM users WHERE login_name = ?", params.LoginName).Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash); err != nil {
+		if err := db.QueryRow("SELECT * FROM users WHERE login_name = ?", params.LoginName).Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash, &user.Price); err != nil {
 			if err == sql.ErrNoRows {
 				return resError(c, "authentication_failed", 401)
 			}
@@ -607,7 +627,25 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
-			if err := db.QueryRow("SELECT * FROM sheets WHERE id NOT IN (SELECT sheet_id FROM reservations WHERE event_id = ? AND canceled_at IS NULL FOR UPDATE) AND `rank` = ? ORDER BY RAND() LIMIT 1", event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
+			if err := db.QueryRow(`SELECT
+			    *
+			FROM
+			    sheets
+			WHERE
+			    id NOT IN (
+			        SELECT
+			            sheet_id
+			        FROM
+			            reservations
+			        WHERE
+			            event_id = ?
+			            AND canceled_at IS NULL
+			        FOR UPDATE)
+			    AND rank = ?
+			ORDER BY
+			    RAND ()
+			LIMIT 1
+      `, event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
 				if err == sql.ErrNoRows {
 					return resError(c, "sold_out", 409)
 				}
@@ -631,6 +669,14 @@ func main() {
 				log.Println("re-try: rollback by", err)
 				continue
 			}
+
+			_, err = tx.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
+			if err != nil {
+				tx.Rollback()
+				log.Println("re-try: rollback by", err)
+				continue
+			}
+
 			if err := tx.Commit(); err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
@@ -699,6 +745,11 @@ func main() {
 		}
 
 		if _, err := tx.Exec("UPDATE reservations SET canceled_at = ? WHERE id = ?", time.Now().UTC().Format("2006-01-02 15:04:05.000000"), reservation.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if _, err := tx.Exec("UPDATE users SET price = price - ? WHERE id = ?", event.Price+sheet.Price, user.ID); err != nil {
 			tx.Rollback()
 			return err
 		}
