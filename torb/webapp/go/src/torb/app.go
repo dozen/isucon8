@@ -192,33 +192,93 @@ func getEvents(all bool) ([]*Event, error) {
 	}
 	defer tx.Commit()
 
-	rows, err := tx.Query("SELECT * FROM events ORDER BY id ASC")
+	rows, err := tx.Query("SELECT id FROM events ORDER BY id ASC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var events []*Event
+	var eventIDs []int64
 	for rows.Next() {
 		var event Event
-		if err := rows.Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
+		if err := rows.Scan(&event.ID); err != nil {
 			return nil, err
 		}
 		if !all && !event.PublicFg {
 			continue
 		}
-		events = append(events, &event)
+		eventIDs = append(eventIDs, event.ID)
 	}
-	for i, v := range events {
-		event, err := getEvent(v.ID, -1)
-		if err != nil {
+
+	return getEventsByIDs(eventIDs, -1)
+}
+
+func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
+	// event ids
+	var event Event
+
+	events := make([]*Event, 0, len(eventIDs))
+
+	event.Sheets = map[string]*Sheets{
+		"S": &Sheets{},
+		"A": &Sheets{},
+		"B": &Sheets{},
+		"C": &Sheets{},
+	}
+
+	var str string
+	for _, value := range eventIDs {
+		str += strconv.Itoa(int(value)) + ","
+	}
+
+	rows, err := db.Query("SELECT * FROM events WHERE id IN (" + str[:len(str)-1] + ")")
+	if err != nil {
+		return nil, err
+	}
+
+	counter := 0
+	for rows.Next() {
+		var event Event
+		if err := rows.Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
 			return nil, err
 		}
-		for k := range event.Sheets {
-			event.Sheets[k].Detail = nil
+
+		for _, cSheet := range cachedSheets {
+			sheet := *cSheet
+			event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
+			event.Total++
+			event.Sheets[sheet.Rank].Total++
+
+
+			rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID)
+			if err != nil {
+				return nil, err
+			}
+			for rows2.Next() {
+				var reservation Reservation
+
+				if err := rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
+					return nil, err
+				}
+				if err == nil {
+					sheet.Mine = reservation.UserID == loginUserID
+					sheet.Reserved = true
+					sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
+				} else if err == sql.ErrNoRows {
+					event.Remains++
+					event.Sheets[sheet.Rank].Remains++
+				} else {
+					return nil, err
+				}
+				// TODO: this maybe danger
+				//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			}
 		}
-		events[i] = event
+		events = append(events, &event)
+
+		counter++
 	}
+
 	return events, nil
 }
 
