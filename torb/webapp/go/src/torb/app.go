@@ -595,6 +595,7 @@ func main() {
 		}
 
 		if recentEvents == nil {
+			log.Println("recentEvents is nil!!!!!!!!!!!!!!!")
 			recentEvents = make([]*Event, 0)
 		}
 
