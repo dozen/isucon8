@@ -672,7 +672,7 @@ func main() {
 		}
 
 		if len(events) == 0 {
-			return errors.New("events: 0")
+			return resError(c, "not_found", 404)
 		}
 
 		event := events[0]
