@@ -751,29 +751,40 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
-			if err := db.QueryRow(`SELECT
-			    *
+			rows, err := db.Query(`SELECT
+					sheet_id
 			FROM
-			    sheets
+					reservations
 			WHERE
-			    id NOT IN (
-			        SELECT
-			            sheet_id
-			        FROM
-			            reservations
-			        WHERE
-			            event_id = ?
-			            AND canceled_at IS NULL
-			        FOR UPDATE)
-			    AND rank = ?
-			ORDER BY
-			    RAND ()
-			LIMIT 1
-      `, event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
-				if err == sql.ErrNoRows {
-					return resError(c, "sold_out", 409)
-				}
+					event_id = ?
+					AND canceled_at IS NULL
+			FOR UPDATE`)
+
+			if err != nil {
 				return err
+			}
+			defer rows.Close()
+
+			sheetIDs := make([]int64, 0, 1000)
+			for rows.Next() {
+				var id int64
+				if err = rows.Scan(&id); err != nil {
+					return err
+				}
+				sheetIDs = append(sheetIDs, id)
+			}
+
+			var sheet *Sheet
+			for _, cSheet := range cachedSheets {
+				for _, id := range sheetIDs {
+					if cSheet.ID != id && cSheet.Rank == params.Rank {
+						sheet = &(*cSheet)
+						break
+					}
+				}
+			}
+			if sheet == nil {
+				return resError(c, "sold_out", 409)
 			}
 
 			tx, err := db.Begin()
