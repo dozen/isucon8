@@ -745,6 +745,11 @@ func main() {
 			return err
 		}
 
+		if _, err := tx.Exec("UPDATE users SET price = price - ? WHERE id = ?", event.Price+sheet.Price, user.ID); err != nil {
+			tx.Rollback()
+			return err
+		}
+
 		if err := tx.Commit(); err != nil {
 			return err
 		}
