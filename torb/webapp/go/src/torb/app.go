@@ -305,7 +305,7 @@ func cacheSheetsOnMemory() error {
 	}
 	defer rows.Close()
 
-	sheets := make([]*Sheet, 1000)
+	sheets := make([]*Sheet, 0, 1000)
 
 	for rows.Next() {
 		var sheet Sheet
