@@ -758,7 +758,7 @@ func main() {
 			WHERE
 					event_id = ?
 					AND canceled_at IS NULL
-			FOR UPDATE`)
+			FOR UPDATE`, event.ID)
 
 			if err != nil {
 				return err
