@@ -578,10 +578,7 @@ func main() {
 		}
 		defer rows.Close()
 
-		var recentEvents []*Event
-
-		var eventIDs []int64
-
+		eventIDs := make([]int64, 0, 5)
 		for rows.Next() {
 			var eventID int64
 			if err := rows.Scan(&eventID); err != nil {
@@ -590,14 +587,9 @@ func main() {
 			eventIDs = append(eventIDs, eventID)
 		}
 
-		recentEvents, err = getEventsByIDs(eventIDs, -1)
+		recentEvents, err := getEventsByIDs(eventIDs, -1)
 		if err != nil {
 			return err
-		}
-
-		if recentEvents == nil {
-			log.Println("recentEvents is nil!!!!!!!!!!!!!!!")
-			recentEvents = make([]*Event, 0)
 		}
 
 		return c.JSON(200, echo.Map{
