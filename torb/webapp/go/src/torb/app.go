@@ -248,36 +248,36 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"C": &Sheets{},
 		}
 
-		for _, cSheet := range cachedSheets {
-			sheet := *cSheet
+		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		for rows2.Next() {
+			var reservation Reservation
+			sheet := *cachedSheets[counter]
 			event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
 			event.Total++
 			event.Sheets[sheet.Rank].Total++
 
-			rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID,)
-			if err != nil {
+
+			if err := rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
 				return nil, err
 			}
-			for rows2.Next() {
-				var reservation Reservation
-
-				if err := rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
-					return nil, err
-				}
-				if err == nil {
-					sheet.Mine = reservation.UserID == loginUserID
-					sheet.Reserved = true
-					sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
-				} else if err == sql.ErrNoRows {
-					event.Remains++
-					event.Sheets[sheet.Rank].Remains++
-				} else {
-					return nil, err
-				}
-				// TODO: this maybe danger
-				//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+			if err == nil {
+				sheet.Mine = reservation.UserID == loginUserID
+				sheet.Reserved = true
+				sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
+			} else if err == sql.ErrNoRows {
+				event.Remains++
+				event.Sheets[sheet.Rank].Remains++
+			} else {
+				return nil, err
 			}
+			// TODO: this maybe danger
+			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
 		}
+
 		events = append(events, &event)
 
 		counter++
