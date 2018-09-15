@@ -662,14 +662,13 @@ func main() {
 			loginUserID = user.ID
 		}
 
-		var event Event
 		events, err := getEventsByIDs([]int64{eventID}, loginUserID)
 
 		if len(events) == 0 {
 			return errors.New("events: 0")
 		}
 
-		event = *events[0]
+		event := events[0]
 
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -679,7 +678,7 @@ func main() {
 		} else if !event.PublicFg {
 			return resError(c, "not_found", 404)
 		}
-		return c.JSON(200, sanitizeEvent(&event))
+		return c.JSON(200, sanitizeEvent(event))
 	})
 	e.POST("/api/events/:id/actions/reserve", func(c echo.Context) error {
 		eventID, err := strconv.ParseInt(c.Param("id"), 10, 64)
