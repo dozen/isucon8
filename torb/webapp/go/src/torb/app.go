@@ -936,7 +936,6 @@ func main() {
 			return err
 		}
 
-		var event Event
 		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
 			return err
@@ -946,7 +945,7 @@ func main() {
 			return resError(c, "invalid_event", 404)
 		}
 
-		event = *events[0]
+		event := events[0]
 
 		return c.JSON(200, event)
 	}, adminLoginRequired)
