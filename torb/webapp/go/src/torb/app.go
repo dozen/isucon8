@@ -197,7 +197,8 @@ func getEvents(all bool) ([]*Event, error) {
 	}
 	defer rows.Close()
 
-	var eventIDs []int64
+	eventIDs := make([]int64, 0, 30)
+
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(&event.ID); err != nil {
