@@ -4,7 +4,7 @@ ROOT_DIR=$(cd $(dirname $0)/..; pwd)
 DB_DIR="$ROOT_DIR/db"
 BENCH_DIR="$ROOT_DIR/bench"
 
-[[ $(hostname) == "isu1" ]] && exit 0
+[[ $(hostname) != "isu2" ]] && exit 0
 
 sudo mv /var/log/mariadb/slow.log /var/log/mariadb/slow.log.$(date +%H%M)
 
