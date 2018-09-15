@@ -592,12 +592,22 @@ func main() {
 			return err
 		}
 
+		resEvents := make([]*Event, 0, 5)
+		for _, id := range eventIDs {
+			for _, ev := range recentEvents {
+				if ev.ID == id {
+					resEvents = append(resEvents, ev)
+					break
+				}
+			}
+		}
+
 		return c.JSON(200, echo.Map{
 			"id":                  user.ID,
 			"nickname":            user.Nickname,
 			"recent_reservations": recentReservations,
 			"total_price":         user.Price,
-			"recent_events":       recentEvents,
+			"recent_events":       resEvents,
 		})
 	}, loginRequired)
 	e.POST("/api/actions/login", func(c echo.Context) error {
