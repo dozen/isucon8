@@ -252,7 +252,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer rows2.Close()
+
 
 		reservRows := make([]Reservation, 0)
 		for rows2.Next() {
@@ -291,6 +291,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
 			counter++
 		}
+		rows2.Close()
 
 		events = append(events, &event)
 	}
