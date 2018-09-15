@@ -683,7 +683,8 @@ func main() {
 		if u, ok := cacheUserMap[user.ID]; ok {
 			s := sha256.New()
 			s.Write([]byte(params.Password))
-			passhash := string(s.Sum(nil))
+			passhash := fmt.Sprintf("%x", string(s.Sum(nil)))
+
 			if u.PassHash != passhash {
 				return resError(c, "authentication_failed", 401)
 			}
@@ -945,7 +946,7 @@ func main() {
 		if u, ok := cacheAdminUserMap[administrator.ID]; ok {
 			s := sha256.New()
 			s.Write([]byte(params.Password))
-			passhash := string(s.Sum(nil))
+			passhash := fmt.Sprintf("%x", string(s.Sum(nil)))
 			if u.PassHash != passhash {
 				return resError(c, "authentication_failed", 401)
 			}
