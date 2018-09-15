@@ -28,6 +28,7 @@ type User struct {
 	Nickname  string `json:"nickname,omitempty"`
 	LoginName string `json:"login_name,omitempty"`
 	PassHash  string `json:"pass_hash,omitempty"`
+	Price     int32  `json:"price,omitempty"`
 }
 
 type Event struct {
