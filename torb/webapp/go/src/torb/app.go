@@ -191,7 +191,7 @@ func getEvents(all bool) ([]*Event, error) {
 	}
 	defer tx.Commit()
 
-	rows, err := tx.Query("SELECT id FROM events ORDER BY id ASC")
+	rows, err := tx.Query("SELECT * FROM events ORDER BY id ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func getEvents(all bool) ([]*Event, error) {
 
 	for rows.Next() {
 		var event Event
-		if err := rows.Scan(&event.ID); err != nil {
+		if err := rows.Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
 			return nil, err
 		}
 		if !all && !event.PublicFg {
