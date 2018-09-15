@@ -278,13 +278,13 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 				}
 			}
 
-			sheet.Mine = reservation.UserID == loginUserID
-			sheet.Reserved = true
-			sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
-
 			if reservation == nil {
 				event.Remains++
 				event.Sheets[sheet.Rank].Remains++
+			} else {
+				sheet.Mine = reservation.UserID == loginUserID
+				sheet.Reserved = true
+				sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
 			}
 
 			// TODO: this maybe danger
