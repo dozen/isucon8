@@ -242,17 +242,16 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		event.Sheets = map[string]*Sheets{
-			"S": &Sheets{},
-			"A": &Sheets{},
-			"B": &Sheets{},
-			"C": &Sheets{},
+			"S": {},
+			"A": {},
+			"B": {},
+			"C": {},
 		}
 
 		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID)
 		if err != nil {
 			return nil, err
 		}
-
 
 		reservRows := make([]Reservation, 0)
 		for rows2.Next() {
@@ -305,10 +304,10 @@ func getEvent(eventID, loginUserID int64) (*Event, error) {
 		return nil, err
 	}
 	event.Sheets = map[string]*Sheets{
-		"S": &Sheets{},
-		"A": &Sheets{},
-		"B": &Sheets{},
-		"C": &Sheets{},
+		"S": {},
+		"A": {},
+		"B": {},
+		"C": {},
 	}
 
 	for _, cSheet := range cachedSheets {
@@ -579,23 +578,29 @@ func main() {
 		}
 		defer rows.Close()
 
-		var recentEvents []*Event
+		eventIDs := make([]int64, 0, 5)
 		for rows.Next() {
 			var eventID int64
 			if err := rows.Scan(&eventID); err != nil {
 				return err
 			}
-			event, err := getEvent(eventID, -1)
-			if err != nil {
-				return err
-			}
-			for k := range event.Sheets {
-				event.Sheets[k].Detail = nil
-			}
-			recentEvents = append(recentEvents, event)
+			eventIDs = append(eventIDs, eventID)
 		}
-		if recentEvents == nil {
-			recentEvents = make([]*Event, 0)
+
+		recentEvents, err := getEventsByIDs(eventIDs, -1)
+		if err != nil {
+			return err
+		}
+
+		resEvents := make([]*Event, 0, 5)
+		for _, id := range eventIDs {
+			for _, ev := range recentEvents {
+				if ev.ID == id {
+					log.Printf("%#v", *ev)
+					resEvents = append(resEvents, ev)
+					break
+				}
+			}
 		}
 
 		return c.JSON(200, echo.Map{
@@ -603,7 +608,7 @@ func main() {
 			"nickname":            user.Nickname,
 			"recent_reservations": recentReservations,
 			"total_price":         user.Price,
-			"recent_events":       recentEvents,
+			"recent_events":       resEvents,
 		})
 	}, loginRequired)
 	e.POST("/api/actions/login", func(c echo.Context) error {
