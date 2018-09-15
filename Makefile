@@ -15,7 +15,6 @@ nginx-service:
 	sudo ln -s /home/isucon/isucon8/nginx.service /etc/systemd/system/; \ 
 	sudo ln -s /home/isucon/isucon8/nginx.service /etc/systemd/system/multi-user.target.wants/
 
-
 reload-nginx:
 	for i in {1..3}; do \
 		ssh isu$$i rsync -av /home/isucon/isucon8/nginx/isu$$i.conf /usr/local/openresty/nginx/conf/nginx.conf; \
@@ -29,3 +28,7 @@ reload-app:
 
 build:
 	cd /home/isucon/torb/webapp/go/; make build
+
+lotate:
+	sudo mv /var/log/nginx/access.log /var/log/nginx/access.log.$$(date +%H%M); \
+	sudo systemctl restart nginx
