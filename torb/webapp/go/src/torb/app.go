@@ -216,10 +216,16 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	// event ids
 	events := make([]*Event, 0, len(eventIDs))
 
+	if len(eventIDs) == 0 {
+		return events, nil
+	}
+
+	log.Printf("eventIDs: %d", len(eventIDs))
+
 	var eventsIDsStr []string
 	for _, value := range eventIDs {
 		str := strconv.Itoa(int(value))
-		eventsIDsStr = append(eventsIDsStr,str)
+		eventsIDsStr = append(eventsIDsStr, str)
 	}
 
 	rows, err := db.Query("SELECT * FROM events WHERE id IN (" + strings.Join(eventsIDsStr, ",") + ")")
@@ -246,7 +252,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
 			event.Total++
 			event.Sheets[sheet.Rank].Total++
-
 
 			rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID)
 			if err != nil {
