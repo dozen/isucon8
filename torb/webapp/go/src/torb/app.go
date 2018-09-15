@@ -242,10 +242,10 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		event.Sheets = map[string]*Sheets{
-			"S": &Sheets{},
-			"A": &Sheets{},
-			"B": &Sheets{},
-			"C": &Sheets{},
+			"S": {},
+			"A": {},
+			"B": {},
+			"C": {},
 		}
 
 		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID)
@@ -304,10 +304,10 @@ func getEvent(eventID, loginUserID int64) (*Event, error) {
 		return nil, err
 	}
 	event.Sheets = map[string]*Sheets{
-		"S": &Sheets{},
-		"A": &Sheets{},
-		"B": &Sheets{},
-		"C": &Sheets{},
+		"S": {},
+		"A": {},
+		"B": {},
+		"C": {},
 	}
 
 	for _, cSheet := range cachedSheets {
@@ -580,7 +580,8 @@ func main() {
 
 		var recentEvents []*Event
 
-		eventIDs := make([]int64, 0)
+		var eventIDs []int64
+
 		for rows.Next() {
 			var eventID int64
 			if err := rows.Scan(&eventID); err != nil {
