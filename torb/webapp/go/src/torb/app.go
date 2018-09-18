@@ -893,22 +893,27 @@ func main() {
 		events, err := getEventsByIDs([]int64{eventID}, user.ID)
 
 		if len(events) == 0 {
+			log.Println("len(events) == 0")
 			return resError(c, "invalid_event", 404)
 		}
 
 		event = *events[0]
 
 		if !event.PublicFg {
+			log.Println("event.PublicFg")
 			return resError(c, "invalid_event", 404)
 		}
 
 		if !validateRank(rank) {
+			log.Println("!validateRank(rank)")
+
 			return resError(c, "invalid_rank", 404)
 		}
 
 		var sheet Sheet
 		if err := db.QueryRow("SELECT * FROM sheets WHERE `rank` = ? AND num = ?", rank, num).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
 			if err == sql.ErrNoRows {
+				log.Println("err == sql.ErrNoRows")
 				return resError(c, "invalid_sheet", 404)
 			}
 			return err
