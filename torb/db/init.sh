@@ -12,7 +12,7 @@ export MYSQL_PWD=isucon
 export MYSQL_HOST="127.0.0.1"
 
 # slow log 切る
-mysql -uisucon -e "SET GLOBAL slow_query_log=0;"
+mysql -uisucon -e "SET GLOBAL slow_query_log=0; flush slow logs;"
 
 mysql -uisucon -e "DROP DATABASE IF EXISTS torb; CREATE DATABASE torb;"
 mysql -uisucon torb < "$DB_DIR/schema.sql"
