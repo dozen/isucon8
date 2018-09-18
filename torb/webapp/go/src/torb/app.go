@@ -874,7 +874,7 @@ func main() {
 			break
 		}
 
-		fmt.Println("sheet_num:" + string(sheet.Num))
+		fmt.Printf("sheet_num: %d", sheet.Num)
 		return c.JSON(202, echo.Map{
 			"id":         reservationID,
 			"sheet_rank": params.Rank,
