@@ -466,7 +466,6 @@ func main() {
 			return err
 		}
 
-
 		if err := cacheSheetsOnMemory(); err != nil {
 			return err
 		}
@@ -589,7 +588,13 @@ func main() {
 			if event == nil {
 				return sql.ErrNoRows
 			}
-			price := event.Sheets[sheet.Rank].Price
+
+			s, ok := event.Sheets[sheet.Rank]
+			if !ok {
+				return sql.ErrNoRows
+			}
+
+			price := s.Price
 			event.Sheets = nil
 			event.Total = 0
 			event.Remains = 0
