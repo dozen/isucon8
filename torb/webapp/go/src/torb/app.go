@@ -828,10 +828,10 @@ func main() {
 							}
 						}
 					}
+				}
 
-					if sheet == nil {
-						return resError(c, "sold_out", 409)
-					}
+				if sheet == nil {
+					return resError(c, "sold_out", 409)
 				}
 
 			}
