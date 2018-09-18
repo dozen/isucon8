@@ -3,6 +3,8 @@ Description=The nginx HTTP and reverse proxy server
 After=syslog.target network.target remote-fs.target nss-lookup.target
 
 [Service]
+LimitNOFILE=1006500
+LimitNPROC=1006500
 Type=forking
 PIDFile=/var/run/nginx.pid
 ExecStartPre=/usr/local/openresty/nginx/sbin/nginx -t

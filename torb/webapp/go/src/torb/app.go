@@ -147,6 +147,7 @@ func sessDeleteAdministratorID(c echo.Context) {
 	sess.Save(c.Request(), c.Response())
 }
 
+
 func loginRequired(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if _, err := getLoginUser(c); err != nil {
@@ -416,6 +417,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	db.SetMaxIdleConns(10240)
+	db.SetMaxOpenConns(1024)
+	db.SetConnMaxLifetime(0)
 
 	e := echo.New()
 	funcs := template.FuncMap{
@@ -430,9 +434,15 @@ func main() {
 	e.Use(session.Middleware(sessions.NewCookieStore([]byte("secret"))))
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{Output: os.Stderr}))
 	e.Static("/", "public")
+	e.GET("/sqlstats", func(c echo.Context) error {
+		stats := db.Stats()
+		log.Printf("%#v", stats)
+		return c.JSON(200, stats)
+	})
 	e.GET("/", func(c echo.Context) error {
 		events, err := getEvents(false)
 		if err != nil {
+			log.Printf("error getEvents.\n")
 			return err
 		}
 		for i, v := range events {
@@ -573,6 +583,9 @@ func main() {
 				}
 			}
 			if event == nil {
+				return sql.ErrNoRows
+			}
+			if event.Sheets[sheet.Rank] == nil {
 				return sql.ErrNoRows
 			}
 			price := event.Sheets[sheet.Rank].Price
