@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -248,7 +249,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"C": {},
 		}
 
-		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID)
+		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id", event.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -299,43 +300,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	}
 
 	return events, nil
-}
-
-func getEvent(eventID, loginUserID int64) (*Event, error) {
-	var event Event
-	if err := db.QueryRow("SELECT * FROM events WHERE id = ?", eventID).Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
-		return nil, err
-	}
-	event.Sheets = map[string]*Sheets{
-		"S": {},
-		"A": {},
-		"B": {},
-		"C": {},
-	}
-
-	for _, cSheet := range cachedSheets {
-		sheet := *cSheet
-		event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
-		event.Total++
-		event.Sheets[sheet.Rank].Total++
-
-		var reservation Reservation
-		err := db.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt)
-		if err == nil {
-			sheet.Mine = reservation.UserID == loginUserID
-			sheet.Reserved = true
-			sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
-		} else if err == sql.ErrNoRows {
-			event.Remains++
-			event.Sheets[sheet.Rank].Remains++
-		} else {
-			return nil, err
-		}
-
-		event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
-	}
-
-	return &event, nil
 }
 
 func sanitizeEvent(e *Event) *Event {
@@ -399,9 +363,47 @@ func cacheSheetsOnMemory() error {
 	return nil
 }
 
+func cacheInitUser() error {
+	rows, err := db.Query("SELECT * FROM users")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.LoginName, &user.Nickname, &user.PassHash, &user.Price); err != nil {
+			return err
+		}
+
+		cacheUserMap[user.ID] = &user
+	}
+
+	return nil
+}
+
+func cacheInitAdminUser() error {
+	rows, err := db.Query("SELECT * FROM administrators")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var admin Administrator
+		if err := rows.Scan(&admin.ID, &admin.LoginName, &admin.Nickname, &admin.PassHash); err != nil {
+			return err
+		}
+
+		cacheAdminUserMap[admin.ID] = &admin
+	}
+
+	return nil
+}
+
 var (
-	db           *sql.DB
-	cachedSheets []*Sheet
+	db                *sql.DB
+	cachedSheets      []*Sheet
+	cacheUserMap      map[int64]*User
+	cacheAdminUserMap map[int64]*Administrator
 )
 
 func main() {
@@ -419,6 +421,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	cacheUserMap = make(map[int64]*User, 6000)
+	cacheAdminUserMap = make(map[int64]*Administrator, 200)
 
 	e := echo.New()
 	funcs := template.FuncMap{
@@ -456,6 +461,14 @@ func main() {
 			return nil
 		}
 
+		if err := cacheInitUser(); err != nil {
+			return err
+		}
+
+		if err := cacheInitAdminUser(); err != nil {
+			return err
+		}
+
 		if err := cacheSheetsOnMemory(); err != nil {
 			return err
 		}
@@ -484,7 +497,7 @@ func main() {
 			return err
 		}
 
-		res, err := tx.Exec("INSERT INTO users (login_name, pass_hash, nickname) VALUES (?, SHA2(?, 256), ?)", params.LoginName, params.Password, params.Nickname)
+		res, err := tx.Exec("INSERT INTO users (login_name, pass_hash, nickname) VALUES (?, ?, ?)", params.LoginName, params.Password, params.Nickname)
 		if err != nil {
 			tx.Rollback()
 			return resError(c, "", 0)
@@ -547,7 +560,13 @@ func main() {
 			if err != nil {
 				return err
 			}
-			price := event.Sheets[sheet.Rank].Price
+
+			s, ok := event.Sheets[sheet.Rank]
+			if !ok {
+				return sql.ErrNoRows
+			}
+
+			price := s.Price
 			event.Sheets = nil
 			event.Total = 0
 			event.Remains = 0
@@ -632,12 +651,18 @@ func main() {
 			return err
 		}
 
-		var passHash string
-		if err := db.QueryRow("SELECT SHA2(?, 256)", params.Password).Scan(&passHash); err != nil {
-			return err
-		}
-		if user.PassHash != passHash {
-			return resError(c, "authentication_failed", 401)
+		if u, ok := cacheUserMap[user.ID]; ok {
+			s := sha256.New()
+			s.Write([]byte(params.Password))
+			passhash := fmt.Sprintf("%x", string(s.Sum(nil)))
+
+			if u.PassHash != passhash {
+				return resError(c, "authentication_failed", 401)
+			}
+		} else {
+			if params.Password != user.PassHash {
+				return resError(c, "authentication_failed", 401)
+			}
 		}
 
 		sessSetUserID(c, user.ID)
@@ -889,12 +914,17 @@ func main() {
 			return err
 		}
 
-		var passHash string
-		if err := db.QueryRow("SELECT SHA2(?, 256)", params.Password).Scan(&passHash); err != nil {
-			return err
-		}
-		if administrator.PassHash != passHash {
-			return resError(c, "authentication_failed", 401)
+		if u, ok := cacheAdminUserMap[administrator.ID]; ok {
+			s := sha256.New()
+			s.Write([]byte(params.Password))
+			passhash := fmt.Sprintf("%x", string(s.Sum(nil)))
+			if u.PassHash != passhash {
+				return resError(c, "authentication_failed", 401)
+			}
+		} else {
+			if params.Password != administrator.PassHash {
+				return resError(c, "authentication_failed", 401)
+			}
 		}
 
 		sessSetAdministratorID(c, administrator.ID)
