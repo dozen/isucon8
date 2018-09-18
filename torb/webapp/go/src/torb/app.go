@@ -469,7 +469,7 @@ func pushEventSheetSlices(eventID int64) {
 	defer sheetSlicesMutex.Unlock()
 	sheetSlices[eventID] = map[string][]int64{}
 	for _, sheet := range cachedSheets {
-		sheetSlices[eventID][sheet.Rank] = sheet.ID
+		sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
 	}
 }
 
