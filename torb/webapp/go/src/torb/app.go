@@ -790,33 +790,42 @@ func main() {
 					AND canceled_at IS NULL
 			FOR UPDATE`, event.ID)
 
-			if err != nil {
-				return err
-			}
-
-
 			sheetIDs := make([]int64, 0, 1000)
-			for rows.Next() {
-				var id int64
-				if err = rows.Scan(&id); err != nil {
-					return err
-				}
-				sheetIDs = append(sheetIDs, id)
-			}
-			rows.Close()
-
 			var sheet *Sheet
-			for _, cSheet := range cachedSheets {
-				for _, id := range sheetIDs {
-					if cSheet.ID != id && cSheet.Rank == params.Rank {
+
+			if err != nil && err != sql.ErrNoRows {
+				return err
+			} else if err == sql.ErrNoRows {
+				for _, cSheet := range cachedSheets {
+					if cSheet.Rank == params.Rank {
 						sheet = &(*cSheet)
 						break
 					}
+ 				}
+			} else {
+				for rows.Next() {
+					var id int64
+					if err = rows.Scan(&id); err != nil {
+						return err
+					}
+					sheetIDs = append(sheetIDs, id)
+				}
+				rows.Close()
+
+				for _, cSheet := range cachedSheets {
+					for _, id := range sheetIDs {
+						if cSheet.ID != id && cSheet.Rank == params.Rank {
+							sheet = &(*cSheet)
+							break
+						}
+					}
+				}
+
+				if sheet == nil {
+					return resError(c, "sold_out", 409)
 				}
 			}
-			if sheet == nil {
-				return resError(c, "sold_out", 409)
-			}
+
 
 			tx, err := db.Begin()
 			if err != nil {
