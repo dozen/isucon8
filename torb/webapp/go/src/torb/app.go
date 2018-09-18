@@ -726,7 +726,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer rows.Close()
+
 
 			sheetIDs := make([]int64, 0, 1000)
 			for rows.Next() {
@@ -736,11 +736,12 @@ func main() {
 				}
 				sheetIDs = append(sheetIDs, id)
 			}
+			rows.Close()
 
 			var sheet *Sheet
 			for _, cSheet := range cachedSheets {
 				for _, id := range sheetIDs {
-					if cSheet.ID != id && cSheet.Rank == params.Rank {
+					if cSheet.ID == id && cSheet.Rank == params.Rank {
 						sheet = &(*cSheet)
 						break
 					}
