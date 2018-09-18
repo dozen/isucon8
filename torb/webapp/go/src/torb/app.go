@@ -797,11 +797,11 @@ func main() {
 				return err
 			} else if err == sql.ErrNoRows {
 				for _, cSheet := range cachedSheets {
-					if cSheet.Rank == params.Rank {
+					if cSheet.Rank == params.Rank && cSheet.Num != 0 {
 						sheet = &(*cSheet)
 						break
 					}
- 				}
+				}
 			} else {
 				for rows.Next() {
 					var id int64
@@ -814,7 +814,7 @@ func main() {
 
 				if len(sheetIDs) == 0 {
 					for _, cSheet := range cachedSheets {
-						if cSheet.Rank == params.Rank {
+						if cSheet.Rank == params.Rank && cSheet.Num != 0 {
 							sheet = &(*cSheet)
 							break
 						}
@@ -822,7 +822,7 @@ func main() {
 				} else {
 					for _, cSheet := range cachedSheets {
 						for _, id := range sheetIDs {
-							if cSheet.ID != id && cSheet.Rank == params.Rank {
+							if cSheet.ID != id && cSheet.Rank == params.Rank && cSheet.Num != 0 {
 								sheet = &(*cSheet)
 								break
 							}
@@ -835,7 +835,6 @@ func main() {
 				}
 
 			}
-
 
 			tx, err := db.Begin()
 			if err != nil {
