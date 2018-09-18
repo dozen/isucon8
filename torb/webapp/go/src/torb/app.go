@@ -409,6 +409,8 @@ func initSheetSlices() error {
 			log.Printf("initSheetSlices row Scan err:", err.Error())
 		}
 
+		sheetSlices[eventID] = map[string][]int64{}
+
 		for _, sheet := range cachedSheets {
 			sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
 		}
