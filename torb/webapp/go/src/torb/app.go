@@ -808,7 +808,7 @@ func main() {
 			var sheet *Sheet
 			for _, cSheet := range cachedSheets {
 				for _, id := range sheetIDs {
-					if cSheet.ID == id && cSheet.Rank == params.Rank {
+					if cSheet.ID != id && cSheet.Rank == params.Rank {
 						sheet = &(*cSheet)
 						break
 					}
