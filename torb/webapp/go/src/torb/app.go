@@ -471,7 +471,7 @@ func popSheetSlices(eventID int64, rank string) (int64, bool) {
 	if len(sheetSlices[eventID][rank]) == 0 {
 		return 0, false
 	} else {
-		sheetID = sheetSlices[eventID][rank][len(sheetSlices[eventID][rank])]
+		sheetID = sheetSlices[eventID][rank][len(sheetSlices[eventID][rank])-1]
 		sheetSlices[eventID][rank] = sheetSlices[eventID][rank][:len(sheetSlices[eventID][rank])-1]
 		return sheetID, true
 	}
