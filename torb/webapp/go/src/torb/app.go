@@ -535,48 +535,17 @@ func main() {
 		}
 		defer rows.Close()
 
-		type pair struct {
-			reservation Reservation
-			sheet       Sheet
-		}
-
-		recentPairs := make([]pair, 0, 5)
+		var recentReservations []Reservation
 		for rows.Next() {
 			var reservation Reservation
 			var sheet Sheet
 			if err := rows.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt, &sheet.Rank, &sheet.Num); err != nil {
 				return err
 			}
-			recentPairs = append(recentPairs, pair{
-				reservation: reservation,
-				sheet:       sheet,
-			})
-		}
 
-		recentReservEventIDs := make([]int64, 0, 5)
-		for _, pair := range recentPairs {
-			recentReservEventIDs = append(recentReservEventIDs, pair.reservation.EventID)
-		}
-
-		recentReservEvents, err := getEventsByIDs(recentReservEventIDs, -1)
-		if err != nil {
-			return err
-		}
-
-		var recentReservations []Reservation
-
-		for _, pair := range recentPairs {
-			reservation := pair.reservation
-			sheet := pair.sheet
-			var event *Event
-			for _, ev := range recentReservEvents {
-				if ev.ID == reservation.EventID {
-					event = ev
-					break
-				}
-			}
-			if event == nil {
-				return sql.ErrNoRows
+			event, err := getEvent(reservation.EventID, -1)
+			if err != nil {
+				return err
 			}
 			price := event.Sheets[sheet.Rank].Price
 			event.Sheets = nil
