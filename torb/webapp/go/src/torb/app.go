@@ -464,6 +464,15 @@ var (
 	sheetSlicesMutex = sync.RWMutex{}
 )
 
+func pushEventSheetSlices(eventID int64) {
+	sheetSlicesMutex.Lock()
+	defer sheetSlicesMutex.Unlock()
+	sheetSlices[eventID] = map[string][]int64{}
+	for _, sheet := range cachedSheets {
+		sheetSlices[evenID][sheet.Rank] = sheet.ID
+	}
+}
+
 func popSheetSlices(eventID int64, rank string) (int64, bool) {
 	var sheetID int64
 	sheetSlicesMutex.Lock()
@@ -1038,6 +1047,8 @@ func main() {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+
+		pushEventSheetSlices(eventID)
 
 		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
