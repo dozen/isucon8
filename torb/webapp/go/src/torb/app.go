@@ -413,6 +413,9 @@ func main() {
 
 	var err error
 	db, err = sql.Open("mysql", dsn)
+	db.SetConnMaxLifetime(0)
+	db.SetMaxIdleConns(10000)
+	db.SetMaxOpenConns(10000)
 	if err != nil {
 		log.Fatal(err)
 	}
