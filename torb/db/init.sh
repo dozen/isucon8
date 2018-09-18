@@ -11,6 +11,9 @@ sudo mv /var/log/mariadb/slow.log /var/log/mariadb/slow.log.$(date +%H%M)
 export MYSQL_PWD=isucon
 export MYSQL_HOST="127.0.0.1"
 
+# slow log 切る
+mysql -uisucon -e "SET GLOBAL slow_query_log=0; flush slow logs;"
+
 mysql -uisucon -e "DROP DATABASE IF EXISTS torb; CREATE DATABASE torb;"
 mysql -uisucon torb < "$DB_DIR/schema.sql"
 
@@ -24,7 +27,8 @@ mysql -uisucon torb -e 'ALTER TABLE reservations DROP KEY event_id_and_sheet_id_
 gzip -dc "$DB_DIR/isucon8q-initial-dataset.sql.gz" | mysql -uisucon torb
 mysql -uisucon torb -e 'ALTER TABLE reservations ADD KEY event_id_and_sheet_id_idx (event_id, sheet_id)'
 
-mysql -uisucon torb -e 'flush slow logs'
+# slow log 有効にする
+mysql -uisucon -e "SET GLOBAL slow_query_log=1;"
 
 curl -sL isu1:8080/initialize
 curl -sL isu3:8080/initialize
