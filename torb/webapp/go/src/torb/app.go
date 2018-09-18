@@ -793,7 +793,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			defer rows.Close()
+
 
 			sheetIDs := make([]int64, 0, 1000)
 			for rows.Next() {
@@ -803,11 +803,12 @@ func main() {
 				}
 				sheetIDs = append(sheetIDs, id)
 			}
+			rows.Close()
 
 			var sheet *Sheet
 			for _, cSheet := range cachedSheets {
 				for _, id := range sheetIDs {
-					if cSheet.ID != id && cSheet.Rank == params.Rank {
+					if cSheet.ID == id && cSheet.Rank == params.Rank {
 						sheet = &(*cSheet)
 						break
 					}
@@ -900,7 +901,7 @@ func main() {
 		}
 
 		var reservation Reservation
-		if err := tx.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id HAVING reserved_at = MIN(reserved_at) FOR UPDATE", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
+		if err := tx.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id FOR UPDATE", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
 			tx.Rollback()
 			if err == sql.ErrNoRows {
 				return resError(c, "not_reserved", 400)
