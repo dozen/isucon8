@@ -419,7 +419,7 @@ func cacheInitUser() error {
 }
 
 func cacheInitAdminUser() error {
-	rows, err := db.Query("SELECT * FROM administrator")
+	rows, err := db.Query("SELECT * FROM administrators")
 	if err != nil {
 		return err
 	}
