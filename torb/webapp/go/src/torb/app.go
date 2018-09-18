@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"time"
 
 	"strings"
@@ -396,6 +397,25 @@ func cacheSheetsOnMemory() error {
 	return nil
 }
 
+func initSheetSlices() error {
+	rows, err := db.Query("SELECT id FROM events")
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var eventID int64
+		if err := rows.Scan(&eventID); err != nil {
+			log.Printf("initSheetSlices row Scan err:", err.Error())
+		}
+
+		for _, sheet := range cachedSheets {
+			sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
+		}
+	}
+	return nil
+}
+
 func cacheInitUser() error {
 	rows, err := db.Query("SELECT * FROM users")
 	if err != nil {
@@ -437,7 +457,29 @@ var (
 	cachedSheets      []*Sheet
 	cacheUserMap      map[int64]*User
 	cacheAdminUserMap map[int64]*Administrator
+
+	sheetSlices      map[int64]map[string][]int64
+	sheetSlicesMutex = sync.RWMutex{}
 )
+
+func popSheetSlices(eventID int64, rank string) (int64, bool) {
+	var sheetID int64
+	sheetSlicesMutex.Lock()
+	defer sheetSlicesMutex.Unlock()
+	if len(sheetSlices[eventID][rank]) == 0 {
+		return 0, false
+	} else {
+		sheetID = sheetSlices[eventID][rank][len(sheetSlices[eventID][rank])]
+		sheetSlices[eventID][rank] = sheetSlices[eventID][rank][:len(sheetSlices[eventID][rank])-1]
+		return sheetID, true
+	}
+}
+
+func pushSheetSlices(eventID int64, rank string, sheetID int64) {
+	sheetSlicesMutex.Lock()
+	defer sheetSlicesMutex.Unlock()
+	sheetSlices[eventID][rank] = append(sheetSlices[eventID][rank], sheetID)
+}
 
 func main() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
@@ -503,6 +545,10 @@ func main() {
 		}
 
 		if err := cacheSheetsOnMemory(); err != nil {
+			return err
+		}
+
+		if err := initSheetSlices(); err != nil {
 			return err
 		}
 
@@ -781,29 +827,11 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
-			if err := db.QueryRow(`SELECT
-			    *
-			FROM
-			    sheets
-			WHERE
-			    id NOT IN (
-			        SELECT
-			            sheet_id
-			        FROM
-			            reservations
-			        WHERE
-			            event_id = ?
-			            AND canceled_at IS NULL
-			        FOR UPDATE)
-			    AND rank = ?
-			ORDER BY
-			    RAND ()
-			LIMIT 1
-      `, event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
-				if err == sql.ErrNoRows {
-					return resError(c, "sold_out", 409)
-				}
-				return err
+			var sheetID int64
+			if sID, ok := popSheetSlices(event.ID, params.Rank); !ok {
+				return resError(c, "sold_out", 409)
+			} else {
+				sheetID = sID
 			}
 
 			tx, err := db.Begin()
@@ -811,30 +839,31 @@ func main() {
 				return err
 			}
 
-			res, err := tx.Exec("INSERT INTO reservations (event_id, sheet_id, user_id, reserved_at) VALUES (?, ?, ?, ?)", event.ID, sheet.ID, user.ID, time.Now().UTC().Format("2006-01-02 15:04:05.000000"))
+			res, err := tx.Exec("INSERT INTO reservations (event_id, sheet_id, user_id, reserved_at) VALUES (?, ?, ?, ?)", event.ID, sheetID, user.ID, time.Now().UTC().Format("2006-01-02 15:04:05.000000"))
 			if err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
 				continue
 			}
 			reservationID, err = res.LastInsertId()
 			if err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
-				continue
-			}
-
-			_, err = tx.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
-			if err != nil {
-				tx.Rollback()
-				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
 				continue
 			}
 
 			if err := tx.Commit(); err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
 				continue
+			}
+
+			_, err = db.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
+			if err != nil {
+				log.Println("re-try: rollback by", err)
 			}
 
 			break
@@ -914,6 +943,8 @@ func main() {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+
+		pushSheetSlices(event.ID, rank, sheet.ID)
 
 		return c.NoContent(204)
 	}, loginRequired)
