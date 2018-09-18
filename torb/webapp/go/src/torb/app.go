@@ -812,18 +812,28 @@ func main() {
 				}
 				rows.Close()
 
-				for _, cSheet := range cachedSheets {
-					for _, id := range sheetIDs {
-						if cSheet.ID != id && cSheet.Rank == params.Rank {
+				if len(sheetIDs) == 0 {
+					for _, cSheet := range cachedSheets {
+						if cSheet.Rank == params.Rank {
 							sheet = &(*cSheet)
 							break
 						}
 					}
+				} else {
+					for _, cSheet := range cachedSheets {
+						for _, id := range sheetIDs {
+							if cSheet.ID != id && cSheet.Rank == params.Rank {
+								sheet = &(*cSheet)
+								break
+							}
+						}
+					}
+
+					if sheet == nil {
+						return resError(c, "sold_out", 409)
+					}
 				}
 
-				if sheet == nil {
-					return resError(c, "sold_out", 409)
-				}
 			}
 
 
