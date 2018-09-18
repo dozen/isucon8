@@ -282,7 +282,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"C": {},
 		}
 
-		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id", event.ID)
+		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL", event.ID)
 		if err != nil {
 			return nil, err
 		}
