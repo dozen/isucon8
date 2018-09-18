@@ -215,6 +215,39 @@ func getEvents(all bool) ([]*Event, error) {
 	return getEventsByIDs(eventIDs, -1)
 }
 
+func getEvent(eventID, loginUserID int64) (*Event, error) {
+	var event Event
+	if err := db.QueryRow("SELECT * FROM events WHERE id = ?", eventID).Scan(&event.ID, &event.Title, &event.PublicFg, &event.ClosedFg, &event.Price); err != nil {
+		return nil, err
+	}
+	event.Sheets = map[string]*Sheets{
+		"S": {},
+		"A": {},
+		"B": {},
+		"C": {},
+	}
+	for _, cSheet := range cachedSheets {
+		sheet := *cSheet
+		event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
+		event.Total++
+		event.Sheets[sheet.Rank].Total++
+		var reservation Reservation
+		err := db.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt)
+		if err == nil {
+			sheet.Mine = reservation.UserID == loginUserID
+			sheet.Reserved = true
+			sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
+		} else if err == sql.ErrNoRows {
+			event.Remains++
+			event.Sheets[sheet.Rank].Remains++
+		} else {
+			return nil, err
+		}
+		event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
+	}
+	return &event, nil
+}
+
 func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	// event ids
 	events := make([]*Event, 0, len(eventIDs))
@@ -548,48 +581,17 @@ func main() {
 		}
 		defer rows.Close()
 
-		type pair struct {
-			reservation Reservation
-			sheet       Sheet
-		}
-
-		recentPairs := make([]pair, 0, 5)
+		var recentReservations []Reservation
 		for rows.Next() {
 			var reservation Reservation
 			var sheet Sheet
 			if err := rows.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt, &sheet.Rank, &sheet.Num); err != nil {
 				return err
 			}
-			recentPairs = append(recentPairs, pair{
-				reservation: reservation,
-				sheet:       sheet,
-			})
-		}
 
-		recentReservEventIDs := make([]int64, 0, 5)
-		for _, pair := range recentPairs {
-			recentReservEventIDs = append(recentReservEventIDs, pair.reservation.EventID)
-		}
-
-		recentReservEvents, err := getEventsByIDs(recentReservEventIDs, -1)
-		if err != nil {
-			return err
-		}
-
-		var recentReservations []Reservation
-
-		for _, pair := range recentPairs {
-			reservation := pair.reservation
-			sheet := pair.sheet
-			var event *Event
-			for _, ev := range recentReservEvents {
-				if ev.ID == reservation.EventID {
-					event = ev
-					break
-				}
-			}
-			if event == nil {
-				return sql.ErrNoRows
+			event, err := getEvent(reservation.EventID, -1)
+			if err != nil {
+				return err
 			}
 
 			s, ok := event.Sheets[sheet.Rank]
