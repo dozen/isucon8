@@ -460,7 +460,7 @@ var (
 	cacheUserMap      map[int64]*User
 	cacheAdminUserMap map[int64]*Administrator
 
-	sheetSlices      map[int64]map[string][]int64
+	sheetSlices      = map[int64]map[string][]int64{}
 	sheetSlicesMutex = sync.RWMutex{}
 )
 
