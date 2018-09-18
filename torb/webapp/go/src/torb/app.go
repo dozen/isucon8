@@ -843,8 +843,7 @@ func main() {
 				return resError(c, "sold_out", 409)
 			} else {
 				sheetID = sID
-				log.Println("sheet ID:", sheetID)
-				sheet = *cachedSheets[sheetID]
+				sheet = *cachedSheets[sheetID-1]
 			}
 
 			tx, err := db.Begin()
