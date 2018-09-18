@@ -836,6 +836,10 @@ func main() {
 
 			}
 
+			if sheet == nil {
+				return resError(c, "sold_out", 409)
+			}
+
 			tx, err := db.Begin()
 			if err != nil {
 				return err
