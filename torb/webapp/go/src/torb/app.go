@@ -950,7 +950,7 @@ func main() {
 		}
 
 		notReserved := true
-		sheetSlicesMutex.Rlock()
+		sheetSlicesMutex.RLock()
 		for _, v := range sheetSlices[eventID][rank] {
 			if v == sheet.ID {
 				notReserved = false
