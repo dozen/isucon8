@@ -781,29 +781,63 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
-			if err := db.QueryRow(`SELECT
-			    *
+			rows, err := db.Query(`SELECT
+					sheet_id
 			FROM
-			    sheets
+					reservations
 			WHERE
-			    id NOT IN (
-			        SELECT
-			            sheet_id
-			        FROM
-			            reservations
-			        WHERE
-			            event_id = ?
-			            AND canceled_at IS NULL
-			        FOR UPDATE)
-			    AND rank = ?
-			ORDER BY
-			    RAND ()
-			LIMIT 1
-      `, event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
-				if err == sql.ErrNoRows {
+					event_id = ?
+					AND canceled_at IS NULL
+			FOR UPDATE`, event.ID)
+
+			sheetIDs := make([]int64, 0, 1000)
+			var sheet *Sheet
+
+			if err != nil && err != sql.ErrNoRows {
+				return err
+			} else if err == sql.ErrNoRows {
+				for _, cSheet := range cachedSheets {
+					if cSheet.Rank == params.Rank && cSheet.Num != 0 {
+						sheet = &(*cSheet)
+						break
+					}
+				}
+			} else {
+				for rows.Next() {
+					var id int64
+					if err = rows.Scan(&id); err != nil {
+						return err
+					}
+					sheetIDs = append(sheetIDs, id)
+				}
+				rows.Close()
+
+				if len(sheetIDs) == 0 {
+					for _, cSheet := range cachedSheets {
+						if cSheet.Rank == params.Rank && cSheet.Num != 0 {
+							sheet = &(*cSheet)
+							break
+						}
+					}
+				} else {
+					for _, cSheet := range cachedSheets {
+						for _, id := range sheetIDs {
+							if cSheet.ID != id && cSheet.Rank == params.Rank && cSheet.Num != 0 {
+								sheet = &(*cSheet)
+								break
+							}
+						}
+					}
+				}
+
+				if sheet == nil {
 					return resError(c, "sold_out", 409)
 				}
-				return err
+
+			}
+
+			if sheet == nil {
+				return resError(c, "sold_out", 409)
 			}
 
 			tx, err := db.Begin()
@@ -839,6 +873,8 @@ func main() {
 
 			break
 		}
+
+		fmt.Printf("sheet_num: %d", sheet.Num)
 		return c.JSON(202, echo.Map{
 			"id":         reservationID,
 			"sheet_rank": params.Rank,
@@ -862,22 +898,27 @@ func main() {
 		events, err := getEventsByIDs([]int64{eventID}, user.ID)
 
 		if len(events) == 0 {
+			log.Println("len(events) == 0")
 			return resError(c, "invalid_event", 404)
 		}
 
 		event = *events[0]
 
 		if !event.PublicFg {
+			log.Println("event.PublicFg")
 			return resError(c, "invalid_event", 404)
 		}
 
 		if !validateRank(rank) {
+			log.Println("!validateRank(rank)")
+
 			return resError(c, "invalid_rank", 404)
 		}
 
 		var sheet Sheet
 		if err := db.QueryRow("SELECT * FROM sheets WHERE `rank` = ? AND num = ?", rank, num).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
 			if err == sql.ErrNoRows {
+				log.Println("err == sql.ErrNoRows")
 				return resError(c, "invalid_sheet", 404)
 			}
 			return err
