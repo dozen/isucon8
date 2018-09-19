@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
@@ -384,14 +385,14 @@ func cacheSheetsOnMemory() error {
 	}
 	defer rows.Close()
 
-	sheets := make([]*Sheet, 0, 1000)
+	sheets := make([]*Sheet, 1000)
 
 	for rows.Next() {
 		var sheet Sheet
 		if err := rows.Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
 			return err
 		}
-		sheets = append(sheets, &sheet)
+		sheets[sheet.ID-1] = &sheet
 	}
 	cachedSheets = sheets
 	return nil
@@ -410,10 +411,10 @@ func initSheetSlices() error {
 		}
 
 		sheetSlices[eventID] = map[string][]int64{}
-
 		for _, sheet := range cachedSheets {
 			sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
 		}
+		shuffle(eventID)
 	}
 	return nil
 }
@@ -471,6 +472,7 @@ func pushEventSheetSlices(eventID int64) {
 	for _, sheet := range cachedSheets {
 		sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
 	}
+	shuffle(eventID)
 }
 
 func popSheetSlices(eventID int64, rank string) (int64, bool) {
@@ -483,6 +485,16 @@ func popSheetSlices(eventID int64, rank string) (int64, bool) {
 		sheetID = sheetSlices[eventID][rank][len(sheetSlices[eventID][rank])-1]
 		sheetSlices[eventID][rank] = sheetSlices[eventID][rank][:len(sheetSlices[eventID][rank])-1]
 		return sheetID, true
+	}
+}
+
+func shuffle(eventID int64) {
+	for _, rank := range []string{"S", "A", "B", "C"} {
+		n := int64(len(sheetSlices[eventID][rank]))
+		for i := n - 1; i >= 0; i-- {
+			j := rand.Int63n(i + 1)
+			sheetSlices[eventID][rank][i], sheetSlices[eventID][rank][j] = sheetSlices[eventID][rank][j], sheetSlices[eventID][rank][i]
+		}
 	}
 }
 
