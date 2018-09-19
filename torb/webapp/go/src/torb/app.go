@@ -949,6 +949,18 @@ func main() {
 			return err
 		}
 
+		notReserved := true
+		sheetSlicesMutex.Rlock()
+		for _, v := range sheetSlices[eventID][rank] {
+			if v == sheet.ID {
+				notReserved = false
+			}
+		}
+		sheetSlicesMutex.RUnlock()
+		if notReserved {
+			return resError(c, "not_reserved", 400)
+		}
+
 		var reservation Reservation
 		if err := tx.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id HAVING reserved_at = MIN(reserved_at)", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
 			tx.Rollback()
