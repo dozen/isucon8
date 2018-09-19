@@ -404,16 +404,21 @@ func initSheetSlices() error {
 		return err
 	}
 
+	ss := map[int64]map[string][]int64{}
 	for rows.Next() {
 		var eventID int64
 		if err := rows.Scan(&eventID); err != nil {
 			log.Printf("initSheetSlices row Scan err:", err.Error())
 		}
 
-		sheetSlices[eventID] = map[string][]int64{}
+		ss[eventID] = map[string][]int64{}
 		for _, sheet := range cachedSheets {
-			sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
+			ss[eventID][sheet.Rank] = append(ss[eventID][sheet.Rank], sheet.ID)
 		}
+	}
+	sheetSlices = ss
+
+	for eventID, _ := range sheetSlices {
 		shuffle(eventID)
 	}
 	return nil
