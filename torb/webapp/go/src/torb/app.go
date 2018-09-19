@@ -857,17 +857,18 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
+
+			tx, err := db.Begin()
+			if err != nil {
+				return err
+			}
+
 			var sheetID int64
 			if sID, ok := popSheetSlices(event.ID, params.Rank); !ok {
 				return resError(c, "sold_out", 409)
 			} else {
 				sheetID = sID
 				sheet = *cachedSheets[sheetID-1]
-			}
-
-			tx, err := db.Begin()
-			if err != nil {
-				return err
 			}
 
 			res, err := tx.Exec("INSERT INTO reservations (event_id, sheet_id, user_id, reserved_at) VALUES (?, ?, ?, ?)", event.ID, sheetID, user.ID, time.Now().UTC().Format("2006-01-02 15:04:05.000000"))
