@@ -10,9 +10,11 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"time"
 
 	"strings"
@@ -362,9 +364,11 @@ func fillinAdministrator(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func validateRank(rank string) bool {
-	var count int
-	db.QueryRow("SELECT COUNT(*) FROM sheets WHERE `rank` = ?", rank).Scan(&count)
-	return count > 0
+	switch rank {
+	case "S", "A", "B", "C":
+		return true
+	}
+	return false
 }
 
 type Renderer struct {
@@ -383,16 +387,42 @@ func cacheSheetsOnMemory() error {
 	}
 	defer rows.Close()
 
-	sheets := make([]*Sheet, 0, 1000)
+	sheets := make([]*Sheet, 1000)
 
 	for rows.Next() {
 		var sheet Sheet
 		if err := rows.Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
 			return err
 		}
-		sheets = append(sheets, &sheet)
+		sheets[sheet.ID-1] = &sheet
 	}
 	cachedSheets = sheets
+	return nil
+}
+
+func initSheetSlices() error {
+	rows, err := db.Query("SELECT id FROM events")
+	if err != nil {
+		return err
+	}
+
+	ss := map[int64]map[string][]int64{}
+	for rows.Next() {
+		var eventID int64
+		if err := rows.Scan(&eventID); err != nil {
+			log.Printf("initSheetSlices row Scan err:", err.Error())
+		}
+
+		ss[eventID] = map[string][]int64{}
+		for _, sheet := range cachedSheets {
+			ss[eventID][sheet.Rank] = append(ss[eventID][sheet.Rank], sheet.ID)
+		}
+	}
+	sheetSlices = ss
+
+	for eventID, _ := range sheetSlices {
+		shuffle(eventID)
+	}
 	return nil
 }
 
@@ -437,7 +467,45 @@ var (
 	cachedSheets      []*Sheet
 	cacheUserMap      map[int64]*User
 	cacheAdminUserMap map[int64]*Administrator
+
+	sheetSlices      = map[int64]map[string][]int64{}
+	sheetSlicesMutex = sync.RWMutex{}
 )
+
+func pushEventSheetSlices(eventID int64) {
+	sheetSlicesMutex.Lock()
+	defer sheetSlicesMutex.Unlock()
+	sheetSlices[eventID] = map[string][]int64{}
+	for _, sheet := range cachedSheets {
+		sheetSlices[eventID][sheet.Rank] = append(sheetSlices[eventID][sheet.Rank], sheet.ID)
+	}
+	shuffle(eventID)
+}
+
+func popSheetSlices(eventID int64, rank string) (int64, bool) {
+	var sheetID int64
+	if len(sheetSlices[eventID][rank]) == 0 {
+		return 0, false
+	} else {
+		sheetID = sheetSlices[eventID][rank][len(sheetSlices[eventID][rank])-1]
+		sheetSlices[eventID][rank] = sheetSlices[eventID][rank][:len(sheetSlices[eventID][rank])-1]
+		return sheetID, true
+	}
+}
+
+func shuffle(eventID int64) {
+	for _, rank := range []string{"S", "A", "B", "C"} {
+		n := int64(len(sheetSlices[eventID][rank]))
+		for i := n - 1; i >= 0; i-- {
+			j := rand.Int63n(i + 1)
+			sheetSlices[eventID][rank][i], sheetSlices[eventID][rank][j] = sheetSlices[eventID][rank][j], sheetSlices[eventID][rank][i]
+		}
+	}
+}
+
+func pushSheetSlices(eventID int64, rank string, sheetID int64) {
+	sheetSlices[eventID][rank] = append(sheetSlices[eventID][rank], sheetID)
+}
 
 func main() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
@@ -503,6 +571,10 @@ func main() {
 		}
 
 		if err := cacheSheetsOnMemory(); err != nil {
+			return err
+		}
+
+		if err := initSheetSlices(); err != nil {
 			return err
 		}
 
@@ -781,64 +853,55 @@ func main() {
 		var sheet Sheet
 		var reservationID int64
 		for {
-			if err := db.QueryRow(`SELECT
-			    *
-			FROM
-			    sheets
-			WHERE
-			    id NOT IN (
-			        SELECT
-			            sheet_id
-			        FROM
-			            reservations
-			        WHERE
-			            event_id = ?
-			            AND canceled_at IS NULL
-			        FOR UPDATE)
-			    AND rank = ?
-			ORDER BY
-			    RAND ()
-			LIMIT 1
-      `, event.ID, params.Rank).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
-				if err == sql.ErrNoRows {
-					return resError(c, "sold_out", 409)
-				}
-				return err
-			}
 
+			sheetSlicesMutex.Lock()
 			tx, err := db.Begin()
 			if err != nil {
 				return err
 			}
 
-			res, err := tx.Exec("INSERT INTO reservations (event_id, sheet_id, user_id, reserved_at) VALUES (?, ?, ?, ?)", event.ID, sheet.ID, user.ID, time.Now().UTC().Format("2006-01-02 15:04:05.000000"))
+			var sheetID int64
+			if sID, ok := popSheetSlices(event.ID, params.Rank); !ok {
+				sheetSlicesMutex.Unlock()
+				return resError(c, "sold_out", 409)
+			} else {
+				sheetID = sID
+				sheet = *cachedSheets[sheetID-1]
+			}
+
+			res, err := tx.Exec("INSERT INTO reservations (event_id, sheet_id, user_id, reserved_at) VALUES (?, ?, ?, ?)", event.ID, sheetID, user.ID, time.Now().UTC().Format("2006-01-02 15:04:05.000000"))
 			if err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
 			}
 			reservationID, err = res.LastInsertId()
 			if err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
-				continue
-			}
-
-			_, err = tx.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
-			if err != nil {
-				tx.Rollback()
-				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
 			}
 
 			if err := tx.Commit(); err != nil {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
+				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
+			}
+
+			_, err = db.Exec("UPDATE users SET price = price + ? WHERE id = ?", sheet.Price+event.Price, user.ID)
+			if err != nil {
+				log.Println("re-try: rollback by", err)
 			}
 
 			break
 		}
+		sheetSlicesMutex.Unlock()
 		return c.JSON(202, echo.Map{
 			"id":         reservationID,
 			"sheet_rank": params.Rank,
@@ -888,6 +951,15 @@ func main() {
 			return err
 		}
 
+		//sheetSlicesMutex.RLock()
+		//for _, v := range sheetSlices[eventID][rank] {
+		//	if v == sheet.ID {
+		//		sheetSlicesMutex.RUnlock()
+		//		return resError(c, "not_reserved", 400)
+		//	}
+		//}
+		//sheetSlicesMutex.RUnlock()
+
 		var reservation Reservation
 		if err := tx.QueryRow("SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL", event.ID, sheet.ID).Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
 			tx.Rollback()
@@ -897,6 +969,14 @@ func main() {
 			return err
 		}
 		if reservation.UserID != user.ID {
+			sheetSlicesMutex.RLock()
+			for _, v := range sheetSlices[eventID][rank] {
+				if v == sheet.ID {
+					sheetSlicesMutex.RUnlock()
+					return resError(c, "not_reserved", 400)
+				}
+			}
+			sheetSlicesMutex.RUnlock()
 			tx.Rollback()
 			return resError(c, "not_permitted", 403)
 		}
@@ -914,6 +994,10 @@ func main() {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+
+		sheetSlicesMutex.Lock()
+		pushSheetSlices(event.ID, rank, sheet.ID)
+		sheetSlicesMutex.Unlock()
 
 		return c.NoContent(204)
 	}, loginRequired)
@@ -1004,6 +1088,8 @@ func main() {
 		if err := tx.Commit(); err != nil {
 			return err
 		}
+
+		pushEventSheetSlices(eventID)
 
 		events, err := getEventsByIDs([]int64{eventID}, -1)
 		if err != nil {
@@ -1116,7 +1202,7 @@ func main() {
 
 		event = *events[0]
 
-		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC FOR UPDATE", event.ID)
+		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id WHERE r.event_id = ? ORDER BY reserved_at ASC", event.ID)
 		if err != nil {
 			return err
 		}
@@ -1146,7 +1232,7 @@ func main() {
 		return renderReportCSV(c, reports)
 	}, adminLoginRequired)
 	e.GET("/admin/api/reports/sales", func(c echo.Context) error {
-		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC FOR UPDATE")
+		rows, err := db.Query("SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, s.price AS sheet_price, e.id AS event_id, e.price AS event_price FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON e.id = r.event_id ORDER BY reserved_at ASC")
 		if err != nil {
 			return err
 		}
@@ -1221,28 +1307,28 @@ func GetSheetByRankNum(rank string, num int64) (Sheet, bool) {
 		s.ID = num
 		s.Price = 5000
 		s.Rank = "S"
-		if !(1 <= num && num <= 50) {
+		if !(1 <= num && num >= 50) {
 			return s, false
 		}
 	case "A":
 		s.ID = num + 50
 		s.Price = 3000
 		s.Rank = "A"
-		if !(1 <= num && num <= 150) {
+		if !(1 <= num && num >= 150) {
 			return s, false
 		}
 	case "B":
 		s.ID = num + 200
 		s.Price = 1000
 		s.Rank = "B"
-		if !(1 <= num && num <= 300) {
+		if !(1 <= num && num >= 300) {
 			return s, false
 		}
 	case "C":
 		s.ID = num + 500
 		s.Price = 0
 		s.Rank = "C"
-		if !(1 <= num && num <= 500) {
+		if !(1 <= num && num >= 500) {
 			return s, false
 		}
 	default:
