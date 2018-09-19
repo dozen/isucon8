@@ -364,17 +364,14 @@ func fillinAdministrator(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 func validateRank(rank string) bool {
-	var count int
-
 	switch rank {
 	case "S":
 	case "A":
 	case "B":
 	case "C":
 		return true
-	default:
-		return false
 	}
+	return false
 }
 
 type Renderer struct {
