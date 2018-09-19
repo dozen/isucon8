@@ -484,8 +484,6 @@ func pushEventSheetSlices(eventID int64) {
 
 func popSheetSlices(eventID int64, rank string) (int64, bool) {
 	var sheetID int64
-	sheetSlicesMutex.Lock()
-	defer sheetSlicesMutex.Unlock()
 	if len(sheetSlices[eventID][rank]) == 0 {
 		return 0, false
 	} else {
@@ -506,8 +504,6 @@ func shuffle(eventID int64) {
 }
 
 func pushSheetSlices(eventID int64, rank string, sheetID int64) {
-	sheetSlicesMutex.Lock()
-	defer sheetSlicesMutex.Unlock()
 	sheetSlices[eventID][rank] = append(sheetSlices[eventID][rank], sheetID)
 }
 
@@ -858,6 +854,7 @@ func main() {
 		var reservationID int64
 		for {
 
+			sheetSlicesMutex.Lock()
 			tx, err := db.Begin()
 			if err != nil {
 				return err
@@ -865,6 +862,7 @@ func main() {
 
 			var sheetID int64
 			if sID, ok := popSheetSlices(event.ID, params.Rank); !ok {
+				sheetSlicesMutex.Unlock()
 				return resError(c, "sold_out", 409)
 			} else {
 				sheetID = sID
@@ -876,6 +874,7 @@ func main() {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
 				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
 			}
 			reservationID, err = res.LastInsertId()
@@ -883,6 +882,7 @@ func main() {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
 				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
 			}
 
@@ -890,6 +890,7 @@ func main() {
 				tx.Rollback()
 				log.Println("re-try: rollback by", err)
 				pushSheetSlices(event.ID, params.Rank, sheetID)
+				sheetSlicesMutex.Unlock()
 				continue
 			}
 
@@ -900,6 +901,7 @@ func main() {
 
 			break
 		}
+		sheetSlicesMutex.Unlock()
 		return c.JSON(202, echo.Map{
 			"id":         reservationID,
 			"sheet_rank": params.Rank,
@@ -988,7 +990,9 @@ func main() {
 			return err
 		}
 
+		sheetSlicesMutex.Lock()
 		pushSheetSlices(event.ID, rank, sheet.ID)
+		sheetSlicesMutex.Unlock()
 
 		return c.NoContent(204)
 	}, loginRequired)
