@@ -851,7 +851,10 @@ func main() {
 			return resError(c, "not_found", 404)
 		}
 		rank := c.Param("rank")
-		num := c.Param("num")
+		num, err := strconv.ParseInt(c.Param("num"), 10, 64)
+		if err != nil {
+			return resError(c, "invalid_sheet", 404)
+		}
 
 		user, err := getLoginUser(c)
 		if err != nil {
@@ -875,12 +878,9 @@ func main() {
 			return resError(c, "invalid_rank", 404)
 		}
 
-		var sheet Sheet
-		if err := db.QueryRow("SELECT * FROM sheets WHERE `rank` = ? AND num = ?", rank, num).Scan(&sheet.ID, &sheet.Rank, &sheet.Num, &sheet.Price); err != nil {
-			if err == sql.ErrNoRows {
-				return resError(c, "invalid_sheet", 404)
-			}
-			return err
+		sheet, ok := GetSheetByRankNum(rank, num)
+		if !ok {
+			return resError(c, "invalid_sheet", 404)
 		}
 
 		tx, err := db.Begin()
@@ -1212,4 +1212,41 @@ func resError(c echo.Context, e string, status int) error {
 		status = 500
 	}
 	return c.JSON(status, map[string]string{"error": e})
+}
+
+func GetSheetByRankNum(rank string, num int64) (Sheet, bool) {
+	var s Sheet
+	switch rank {
+	case "S":
+		s.ID = num
+		s.Price = 5000
+		s.Rank = "S"
+		if !(1 <= num && num >= 50) {
+			return s, false
+		}
+	case "A":
+		s.ID = num + 50
+		s.Price = 3000
+		s.Rank = "A"
+		if !(1 <= num && num >= 150) {
+			return s, false
+		}
+	case "B":
+		s.ID = num + 200
+		s.Price = 1000
+		s.Rank = "B"
+		if !(1 <= num && num >= 300) {
+			return s, false
+		}
+	case "C":
+		s.ID = num + 500
+		s.Price = 0
+		s.Rank = "C"
+		if !(1 <= num && num >= 500) {
+			return s, false
+		}
+	default:
+		return s, false
+	}
+	return s, true
 }
