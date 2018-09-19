@@ -365,10 +365,7 @@ func fillinAdministrator(next echo.HandlerFunc) echo.HandlerFunc {
 
 func validateRank(rank string) bool {
 	switch rank {
-	case "S":
-	case "A":
-	case "B":
-	case "C":
+	case "S", "A", "B", "C":
 		return true
 	}
 	return false
