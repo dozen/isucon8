@@ -1307,10 +1307,10 @@ func GetSheetByID(id int64) (Sheet, bool) {
 		return Sheet{ID: id, Rank: "S", Price: 5000, Num: id}, true
 	} else if 51 <= id && id <= 150 {
 		return Sheet{ID: id, Rank: "A", Price: 3000, Num: id - 50}, true
-	} else if 151 <= id && id <= 300 {
-		return Sheet{ID: id, Rank: "B", Price: 1000, Num: id - 150}, true
-	} else if 301 <= id && id <= 500 {
-		return Sheet{ID: id, Rank: "C", Price: 0, Num: id - 300}, true
+	} else if 151 <= id && id <= 500 {
+		return Sheet{ID: id, Rank: "B", Price: 1000, Num: id - 200}, true
+	} else if 501 <= id && id <= 1000 {
+		return Sheet{ID: id, Rank: "C", Price: 0, Num: id - 500}, true
 	}
 	return Sheet{}, false
 }
@@ -1330,21 +1330,21 @@ func GetSheetByRankNum(rank string, num int64) (Sheet, bool) {
 		s.ID = num + 50
 		s.Price = 3000
 		s.Rank = "A"
-		if !(51 <= num && num <= 150) {
+		if !(1 <= num && num <= 150) {
 			return s, false
 		}
 	case "B":
 		s.ID = num + 200
 		s.Price = 1000
 		s.Rank = "B"
-		if !(151 <= num && num <= 300) {
+		if !(1 <= num && num <= 300) {
 			return s, false
 		}
 	case "C":
 		s.ID = num + 500
 		s.Price = 0
 		s.Rank = "C"
-		if !(301 <= num && num <= 500) {
+		if !(1 <= num && num <= 500) {
 			return s, false
 		}
 	default:
