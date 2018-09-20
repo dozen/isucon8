@@ -414,7 +414,7 @@ func initSheetSlices() error {
 		}
 		for rank, sheets := range e.Sheets {
 			for _, s := range sheets.Detail {
-				if s.Reserved {
+				if !s.Reserved {
 					ss[e.ID][rank] = append(ss[e.ID][s.Rank], s.ID)
 				}
 			}
