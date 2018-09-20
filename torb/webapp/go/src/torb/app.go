@@ -414,11 +414,11 @@ func initSheetSlices() error {
 	}
 	defer rows2.Close()
 
-	isReserved := map[int64]map[int64]struct{}{}
+	isReserved := map[string]struct{}{}
 	for rows2.Next() {
 		var eventID, sheetID int64
 		rows2.Scan(&eventID, &sheetID)
-		isReserved[eventID][sheetID] = struct{}{}
+		isReserved[fmt.Sprintf("%v-%v", eventID, sheetID)] = struct{}{}
 	}
 
 	ss := map[int64]map[string][]int64{}
@@ -430,7 +430,7 @@ func initSheetSlices() error {
 
 		ss[eventID] = map[string][]int64{}
 		for _, sheet := range cachedSheets {
-			if _, ok := isReserved[eventID][sheet.ID]; ok { //予約済みだったらスキップ
+			if _, ok := isReserved[fmt.Sprintf("%v-%v", eventID, sheet.ID)]; ok { //予約済みだったらスキップ
 				continue
 			}
 			ss[eventID][sheet.Rank] = append(ss[eventID][sheet.Rank], sheet.ID)
