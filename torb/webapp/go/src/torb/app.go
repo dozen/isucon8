@@ -281,6 +281,13 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	for rows2.Next() {
+		var reservation Reservation
+		if err = rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
+			return nil, err
+		}
+		reservRows[reservation.EventID][reservation.SheetID] = &reservation
+	}
 	defer rows2.Close()
 
 	for rows.Next() {
@@ -294,14 +301,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"A": {},
 			"B": {},
 			"C": {},
-		}
-
-		for rows2.Next() {
-			var reservation Reservation
-			if err = rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
-				return nil, err
-			}
-			reservRows[reservation.EventID][reservation.SheetID] = &reservation
 		}
 
 		for _, cSheet := range cachedSheets {
@@ -325,6 +324,10 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		events = append(events, &event)
+	}
+
+	for _, e := range events {
+		log.Println("id", e.ID, "\tremains:", e.Remains)
 	}
 
 	return events, nil
