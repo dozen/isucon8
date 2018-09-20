@@ -401,21 +401,23 @@ func cacheSheetsOnMemory() error {
 }
 
 func initSheetSlices() error {
-	rows, err := db.Query("SELECT id FROM events")
+	ss := map[int64]map[string][]int64{}
+
+	events, err := getEvents(true)
 	if err != nil {
 		return err
 	}
 
-	ss := map[int64]map[string][]int64{}
-	for rows.Next() {
-		var eventID int64
-		if err := rows.Scan(&eventID); err != nil {
-			log.Printf("initSheetSlices row Scan err:", err.Error())
+	for _, e := range events {
+		ss[e.ID] = map[string][]int64{
+			"S": make([]int64, 0, 1000), "A": make([]int64, 0, 1000), "B": make([]int64, 0, 1000), "C": make([]int64, 0, 1000),
 		}
-
-		ss[eventID] = map[string][]int64{}
-		for _, sheet := range cachedSheets {
-			ss[eventID][sheet.Rank] = append(ss[eventID][sheet.Rank], sheet.ID)
+		for rank, sheets := range e.Sheets {
+			for _, s := range sheets.Detail {
+				if s.Reserved {
+					ss[e.ID][rank] = append(ss[e.ID][s.Rank], s.ID)
+				}
+			}
 		}
 	}
 	sheetSlices = ss
