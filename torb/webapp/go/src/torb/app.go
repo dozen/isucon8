@@ -297,7 +297,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		for rows2.Next() {
-			var reservation *Reservation
+			reservation := &Reservation{}
 			if err = rows2.Scan(reservation.ID, reservation.EventID, reservation.SheetID, reservation.UserID, reservation.ReservedAt, reservation.CanceledAt); err != nil {
 				return nil, err
 			}
