@@ -272,7 +272,7 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	}
 	defer rows.Close()
 
-	rows2, err := db.Query("SELECT r.* FROM reservations WHERE event_id IN (" + strings.Join(eventsIDsStr, ",") + ") AND canceled_at IS NULL")
+	rows2, err := db.Query("SELECT * FROM reservations WHERE event_id IN (" + strings.Join(eventsIDsStr, ",") + ") AND canceled_at IS NULL")
 	if err != nil {
 		return nil, err
 	}
