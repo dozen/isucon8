@@ -408,7 +408,7 @@ func initSheetSlices() error {
 	defer rows.Close()
 
 	// isReserved に予約済みの席を入れていく
-	rows2, err := db.Query("SELECT e.id, s.id FROM events AS e JOIN reservations AS r ON e.id = r.event_id JOIN sheets AS s ON s.id = r.sheet_id WHERE e.closed_fg != 1 AND canceled_at ID NULL")
+	rows2, err := db.Query("SELECT e.id, s.id FROM events AS e JOIN reservations AS r ON e.id = r.event_id JOIN sheets AS s ON s.id = r.sheet_id WHERE e.closed_fg != 1 AND canceled_at IS NULL")
 	if err != nil {
 		return err
 	}
