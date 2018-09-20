@@ -270,6 +270,13 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
+	rows2, err := db.Query("SELECT r.* FROM reservations WHERE event_id = IN (" + strings.Join(eventsIDsStr, ",") + ") AND canceled_at IS NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows2.Close()
 
 	for rows.Next() {
 		var event Event
@@ -284,52 +291,38 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"C": {},
 		}
 
-		rows2, err := db.Query("SELECT * FROM reservations WHERE event_id = ? AND canceled_at IS NULL", event.ID)
-		if err != nil {
-			return nil, err
+		reservRows := map[int64]map[int64]*Reservation{}
+		for _, eID := range eventIDs {
+			reservRows[eID] = make(map[int64]*Reservation, 1000)
 		}
 
-		reservRows := make([]Reservation, 0)
 		for rows2.Next() {
-			var reservation Reservation
-			if err = rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
+			var reservation *Reservation
+			if err = rows2.Scan(reservation.ID, reservation.EventID, reservation.SheetID, reservation.UserID, reservation.ReservedAt, reservation.CanceledAt); err != nil {
 				return nil, err
 			}
-			reservRows = append(reservRows, reservation)
+			reservRows[event.ID][reservation.SheetID] = reservation
 		}
 
-		counter := 0
 		for _, cSheet := range cachedSheets {
 			sheet := *cSheet
 			event.Sheets[sheet.Rank].Price = event.Price + sheet.Price
 			event.Total++
 			event.Sheets[sheet.Rank].Total++
 
-			var reservation *Reservation
-			for _, r := range reservRows {
-				if r.SheetID == sheet.ID {
-					reservation = &r
-					break
-				}
-			}
-
-			if reservation == nil {
-				event.Remains++
-				event.Sheets[sheet.Rank].Remains++
-			} else {
+			if reservation, ok := reservRows[event.ID][sheet.ID]; ok {
 				sheet.Mine = reservation.UserID == loginUserID
 				sheet.Reserved = true
 				sheet.ReservedAtUnix = reservation.ReservedAt.Unix()
+			} else {
+				event.Remains++
+				event.Sheets[sheet.Rank].Remains++
 			}
 
-			// TODO: this maybe danger
-			//event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
 			if len(eventIDs) == 1 {
 				event.Sheets[sheet.Rank].Detail = append(event.Sheets[sheet.Rank].Detail, &sheet)
 			}
-			counter++
 		}
-		rows2.Close()
 
 		events = append(events, &event)
 	}
