@@ -988,14 +988,6 @@ func main() {
 			return err
 		}
 		if reservation.UserID != user.ID {
-			sheetSlicesMutex.RLock()
-			for _, v := range sheetSlices[eventID][rank] {
-				if v == sheet.ID {
-					sheetSlicesMutex.RUnlock()
-					return resError(c, "not_reserved", 400)
-				}
-			}
-			sheetSlicesMutex.RUnlock()
 			tx.Rollback()
 			return resError(c, "not_permitted", 403)
 		}
