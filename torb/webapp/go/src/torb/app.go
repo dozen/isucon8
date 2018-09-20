@@ -261,6 +261,11 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 	log.Printf("eventIDs: %d", len(eventIDs))
 
 	var eventsIDsStr []string
+	reservRows := map[int64]map[int64]*Reservation{}
+	for _, eID := range eventIDs {
+		reservRows[eID] = make(map[int64]*Reservation, 1000)
+	}
+
 	for _, value := range eventIDs {
 		str := strconv.Itoa(int(value))
 		eventsIDsStr = append(eventsIDsStr, str)
@@ -289,11 +294,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 			"A": {},
 			"B": {},
 			"C": {},
-		}
-
-		reservRows := map[int64]map[int64]*Reservation{}
-		for _, eID := range eventIDs {
-			reservRows[eID] = make(map[int64]*Reservation, 1000)
 		}
 
 		for rows2.Next() {
