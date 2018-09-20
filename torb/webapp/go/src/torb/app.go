@@ -297,11 +297,11 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		for rows2.Next() {
-			reservation := &Reservation{}
-			if err = rows2.Scan(reservation.ID, reservation.EventID, reservation.SheetID, reservation.UserID, reservation.ReservedAt, reservation.CanceledAt); err != nil {
+			var reservation Reservation
+			if err = rows2.Scan(&reservation.ID, &reservation.EventID, &reservation.SheetID, &reservation.UserID, &reservation.ReservedAt, &reservation.CanceledAt); err != nil {
 				return nil, err
 			}
-			reservRows[event.ID][reservation.SheetID] = reservation
+			reservRows[event.ID][reservation.SheetID] = &reservation
 		}
 
 		for _, cSheet := range cachedSheets {
