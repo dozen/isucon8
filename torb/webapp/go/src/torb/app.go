@@ -1305,9 +1305,9 @@ func resError(c echo.Context, e string, status int) error {
 func GetSheetByID(id int64) (Sheet, bool) {
 	if 1 <= id && id <= 50 {
 		return Sheet{ID: id, Rank: "S", Price: 5000, Num: id}, true
-	} else if 51 <= id && id <= 150 {
+	} else if 51 <= id && id <= 200 {
 		return Sheet{ID: id, Rank: "A", Price: 3000, Num: id - 50}, true
-	} else if 151 <= id && id <= 500 {
+	} else if 201 <= id && id <= 500 {
 		return Sheet{ID: id, Rank: "B", Price: 1000, Num: id - 200}, true
 	} else if 501 <= id && id <= 1000 {
 		return Sheet{ID: id, Rank: "C", Price: 0, Num: id - 500}, true
