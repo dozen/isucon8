@@ -401,25 +401,42 @@ func cacheSheetsOnMemory() error {
 }
 
 func initSheetSlices() error {
-	ss := map[int64]map[string][]int64{}
-
-	events, err := getEvents(true)
+	rows, err := db.Query("SELECT id FROM events")
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 
-	for _, e := range events {
-		ss[e.ID] = map[string][]int64{
-			"S": make([]int64, 0, 1000), "A": make([]int64, 0, 1000), "B": make([]int64, 0, 1000), "C": make([]int64, 0, 1000),
+	// isReserved に予約済みの席を入れていく
+	rows2, err := db.Query("SELECT e.id, s.id FROM events AS e JOIN reservations AS r ON e.id = r.event_id JOIN sheets AS s ON s.id = r.sheet_id WHERE e.closed_fg != 1 AND canceled_at ID NULL")
+	if err != nil {
+		return err
+	}
+	defer rows2.Close()
+
+	isReserved := map[int64]map[int64]struct{}{}
+	for rows2.Next() {
+		var eventID, sheetID int64
+		rows2.Scan(&eventID, &sheetID)
+		isReserved[eventID][sheetID] = struct{}{}
+	}
+
+	ss := map[int64]map[string][]int64{}
+	for rows.Next() {
+		var eventID int64
+		if err := rows.Scan(&eventID); err != nil {
+			log.Printf("initSheetSlices row Scan err:", err.Error())
 		}
-		for rank, sheets := range e.Sheets {
-			for _, s := range sheets.Detail {
-				if !s.Reserved {
-					ss[e.ID][rank] = append(ss[e.ID][s.Rank], s.ID)
-				}
+
+		ss[eventID] = map[string][]int64{}
+		for _, sheet := range cachedSheets {
+			if _, ok := isReserved[eventID][sheet.ID]; ok { //予約済みだったらスキップ
+				continue
 			}
+			ss[eventID][sheet.Rank] = append(ss[eventID][sheet.Rank], sheet.ID)
 		}
 	}
+
 	sheetSlices = ss
 
 	for eventID, _ := range sheetSlices {
