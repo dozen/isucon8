@@ -262,13 +262,11 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 
 	var eventsIDsStr []string
 	reservRows := map[int64]map[int64]*Reservation{}
-	for _, eID := range eventIDs {
-		reservRows[eID] = make(map[int64]*Reservation, 1000)
-	}
 
 	for _, value := range eventIDs {
 		str := strconv.Itoa(int(value))
 		eventsIDsStr = append(eventsIDsStr, str)
+		reservRows[value] = make(map[int64]*Reservation, 1000)
 	}
 
 	rows, err := db.Query("SELECT * FROM events WHERE id IN (" + strings.Join(eventsIDsStr, ",") + ")")
@@ -324,10 +322,6 @@ func getEventsByIDs(eventIDs []int64, loginUserID int64) ([]*Event, error) {
 		}
 
 		events = append(events, &event)
-	}
-
-	for _, e := range events {
-		log.Println("id", e.ID, "\tremains:", e.Remains)
 	}
 
 	return events, nil
